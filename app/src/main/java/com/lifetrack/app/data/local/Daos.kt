@@ -50,3 +50,21 @@ interface SleepDao {
     @Query("DELETE FROM sleep_entries WHERE id = :id")
     suspend fun delete(id: String)
 }
+
+@Dao
+interface MealDao {
+    @Query("SELECT * FROM pending_meal_analyses WHERE status = 'PENDING' ORDER BY createdAt LIMIT 1")
+    suspend fun nextPending(): PendingMealAnalysisEntity?
+    @Query("SELECT * FROM pending_meal_analyses WHERE status = 'READY' ORDER BY updatedAt DESC")
+    fun observeReady(): Flow<List<PendingMealAnalysisEntity>>
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertPending(value: PendingMealAnalysisEntity)
+    @Query("UPDATE pending_meal_analyses SET status = 'READY', resultJson = :result, updatedAt = :updatedAt WHERE id = :id")
+    suspend fun markReady(id: String, result: String, updatedAt: Long)
+    @Query("DELETE FROM pending_meal_analyses WHERE id = :id")
+    suspend fun deletePending(id: String)
+    @Query("SELECT * FROM meal_history ORDER BY createdAt DESC")
+    fun observeHistory(): Flow<List<MealHistoryEntity>>
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertHistory(value: MealHistoryEntity)
+}

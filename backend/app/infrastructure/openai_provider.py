@@ -10,7 +10,7 @@ class OpenAIVisionProvider:
         response = await client.responses.create(
             model=settings.openai_model,
             input=[{"role":"user","content":[
-                {"type":"input_text","text":"Identify visible foods and estimate portions and nutrition. Return estimates only, never medical advice."},
+                {"type":"input_text","text":"Identify every visible food, likely ingredients, estimated portions, and aggregate calories, protein, carbohydrates, fat, fiber, sugars, and sodium. Return cautious estimates only, never medical advice."},
                 {"type":"input_image","image_url":f"data:{mime_type};base64,{base64.b64encode(image).decode()}"}
             ]}],
             text={"format":{"type":"json_schema","name":"meal_analysis","schema":schema,"strict":True}},

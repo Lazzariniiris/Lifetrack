@@ -9,8 +9,16 @@ import retrofit2.http.Multipart
 import retrofit2.http.POST
 import retrofit2.http.Part
 
-@Serializable data class DetectedFood(val name: String, @SerialName("estimated_portion") val estimatedPortion: String)
-@Serializable data class NutritionResult(val calories: Double, @SerialName("protein_g") val proteinG: Double, @SerialName("carbs_g") val carbsG: Double, @SerialName("fat_g") val fatG: Double)
+@Serializable data class DetectedFood(val name: String, val ingredients: List<String>, @SerialName("estimated_portion") val estimatedPortion: String)
+@Serializable data class NutritionResult(
+    val calories: Double,
+    @SerialName("protein_g") val proteinG: Double,
+    @SerialName("carbs_g") val carbsG: Double,
+    @SerialName("fat_g") val fatG: Double,
+    @SerialName("fiber_g") val fiberG: Double,
+    @SerialName("sugars_g") val sugarsG: Double,
+    @SerialName("sodium_mg") val sodiumMg: Double,
+)
 @Serializable data class MealAnalysisResult(val id: String? = null, val foods: List<DetectedFood>, val nutrition: NutritionResult, val confidence: String, val disclaimer: String)
 interface MealApi {
     @Multipart @POST("v1/meals/analyze") suspend fun analyze(

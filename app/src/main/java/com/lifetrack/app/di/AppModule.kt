@@ -25,6 +25,10 @@ import com.lifetrack.app.domain.repository.AuthRepository
 import com.lifetrack.app.data.remote.MealApi
 import com.lifetrack.app.data.repository.RemoteMealRepository
 import com.lifetrack.app.domain.repository.MealRepository
+import com.lifetrack.app.data.repository.LocalMealQueueRepository
+import com.lifetrack.app.domain.repository.MealQueueRepository
+import com.lifetrack.app.data.local.MealDao
+import com.lifetrack.app.data.local.MIGRATION_1_2
 import dagger.Binds
 import dagger.Module
 import dagger.Provides
@@ -47,6 +51,7 @@ abstract class RepositoryModule {
     @Binds abstract fun bindReminderScheduler(scheduler: WorkManagerReminderScheduler): ReminderScheduler
     @Binds abstract fun bindAuthRepository(repository: SupabaseAuthRepository): AuthRepository
     @Binds abstract fun bindMealRepository(repository: RemoteMealRepository): MealRepository
+    @Binds abstract fun bindMealQueueRepository(repository: LocalMealQueueRepository): MealQueueRepository
 }
 
 @Module
@@ -66,10 +71,12 @@ object DatabaseModule {
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): LifeTrackDatabase =
         Room.databaseBuilder(context, LifeTrackDatabase::class.java, "lifetrack.db")
+            .addMigrations(MIGRATION_1_2)
             .build()
 
     @Provides fun provideHabitDao(database: LifeTrackDatabase): HabitDao = database.habitDao()
     @Provides fun provideHabitLogDao(database: LifeTrackDatabase): HabitLogDao = database.habitLogDao()
     @Provides fun provideWaterDao(database: LifeTrackDatabase): WaterDao = database.waterDao()
     @Provides fun provideSleepDao(database: LifeTrackDatabase): SleepDao = database.sleepDao()
+    @Provides fun provideMealDao(database: LifeTrackDatabase): MealDao = database.mealDao()
 }

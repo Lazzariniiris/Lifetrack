@@ -6,7 +6,8 @@ from urllib.request import Request, urlopen
 project_url = os.environ["SUPABASE_URL"].rstrip("/")
 project_ref = project_url.removeprefix("https://").split(".")[0]
 token = os.environ["SUPABASE_ACCESS_TOKEN"]
-sql = (Path(__file__).parents[1] / "sql" / "001_initial.sql").read_text(encoding="utf-8")
+sql_directory = Path(__file__).parents[1] / "sql"
+sql = "\n".join(path.read_text(encoding="utf-8") for path in sorted(sql_directory.glob("*.sql")))
 request = Request(
     f"https://api.supabase.com/v1/projects/{project_ref}/database/query",
     data=json.dumps({"query": sql}).encode(),

@@ -51,3 +51,27 @@ data class SleepEntryEntity(
     val quality: Int,
     val notes: String?,
 )
+
+@Entity(tableName = "pending_meal_analyses", indices = [Index(value = ["status", "createdAt"])])
+data class PendingMealAnalysisEntity(
+    @PrimaryKey val id: String,
+    val photoPath: String,
+    val status: String,
+    val resultJson: String?,
+    val createdAt: Long,
+    val updatedAt: Long,
+)
+
+@Entity(tableName = "meal_history", indices = [Index(value = ["createdAt"])])
+data class MealHistoryEntity(
+    @PrimaryKey val id: String,
+    val resultJson: String,
+    val calories: Double,
+    val proteinG: Double,
+    val carbsG: Double,
+    val fatG: Double,
+    val fiberG: Double,
+    val sugarsG: Double,
+    val sodiumMg: Double,
+    val createdAt: Long,
+)

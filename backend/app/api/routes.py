@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel, EmailStr
 from app.api.dependencies import current_user, AuthenticatedUser
 from app.core.config import settings
-from app.infrastructure.openai_provider import OpenAIVisionProvider
+from app.infrastructure.provider_factory import meal_analysis_provider
 from app.infrastructure.supabase_gateway import SupabaseGateway
 from app.domain.contracts import Analysis
 
@@ -28,7 +28,7 @@ async def analyze_meal(consent: bool = Form(...), image: UploadFile = File(...),
     if image.content_type not in {"image/jpeg", "image/png", "image/webp"}: raise HTTPException(415, "Unsupported image type")
     payload = await image.read(settings.max_image_bytes + 1)
     if len(payload) > settings.max_image_bytes: raise HTTPException(413, "Image too large")
-    result = await OpenAIVisionProvider().analyze(payload, image.content_type)
+    result = await meal_analysis_provider().analyze(payload, image.content_type)
     return result
 
 @router.post("/meals")

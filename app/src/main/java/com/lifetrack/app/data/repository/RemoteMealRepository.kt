@@ -22,11 +22,11 @@ import javax.inject.Singleton
         return runCatching {
             val image = MultipartBody.Part.createFormData("image", "meal.jpg", file.asRequestBody("image/jpeg".toMediaType()))
             api.analyze("Bearer $token", image, "true".toRequestBody("text/plain".toMediaType()))
-        }.fold({ file.delete(); AppResult.Success(it) }, { AppResult.Error(it.message ?: "No se pudo analizar la comida") })
+        }.fold({ file.delete(); AppResult.Success(it) }, { AppResult.Error("No pudimos analizar la foto ahora.") })
     }
     override suspend fun save(result: MealAnalysisResult): AppResult<MealAnalysisResult> {
         val token = auth.validAccessToken() ?: return AppResult.Error("Inicia sesion para guardar la comida.")
         return runCatching { api.save("Bearer $token", result.copy(id = null)) }
-            .fold({ AppResult.Success(it) }, { AppResult.Error(it.message ?: "No se pudo guardar la comida") })
+            .fold({ AppResult.Success(it) }, { AppResult.Error("No pudimos guardar la comida. Conservamos los cambios para que puedas reintentar.") })
     }
 }

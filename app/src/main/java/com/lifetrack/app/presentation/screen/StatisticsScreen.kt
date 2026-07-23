@@ -27,6 +27,7 @@ import com.lifetrack.app.domain.model.ThemeMode
 import com.lifetrack.app.presentation.util.formatDuration
 import com.lifetrack.app.presentation.viewmodel.AppViewModel
 import com.lifetrack.app.presentation.viewmodel.StatisticsViewModel
+import com.lifetrack.app.presentation.viewmodel.MealStatsViewModel
 
 @Composable
 fun StatisticsScreen(
@@ -35,9 +36,11 @@ fun StatisticsScreen(
     onOpenCalendar: () -> Unit,
     onOpenAbout: () -> Unit,
     viewModel: StatisticsViewModel = hiltViewModel(),
+    mealStatsViewModel: MealStatsViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val preferences by appViewModel.preferences.collectAsStateWithLifecycle()
+    val mealStats by mealStatsViewModel.state.collectAsStateWithLifecycle()
     ScreenColumn(contentPadding) {
         Text("Resumen", style = MaterialTheme.typography.headlineMedium)
         Text("Una mirada clara a tus ultimos 7 dias", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -45,6 +48,8 @@ fun StatisticsScreen(
         StatisticCard("Promedio de sueno", if (state.weeklySleepAverage == 0L) "Sin datos" else formatDuration(state.weeklySleepAverage))
         StatisticCard("Cumplimiento de habitos", "${(state.habitCompletion * 100).toInt()}%")
         StatisticCard("Dias con actividad", "${state.daysWithData} de 7")
+        StatisticCard("Comidas registradas", mealStats.count.toString())
+        StatisticCard("Promedio nutricional", if (mealStats.count == 0) "Sin datos" else "${mealStats.averageCalories} kcal · ${mealStats.averageProteinG} g proteina")
         Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)) {
             Column(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
