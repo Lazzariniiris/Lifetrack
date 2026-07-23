@@ -5,8 +5,15 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Row
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.Insights
+import androidx.compose.material.icons.filled.WaterDrop
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -26,27 +33,34 @@ fun StatisticsScreen(
     contentPadding: PaddingValues,
     appViewModel: AppViewModel,
     onOpenCalendar: () -> Unit,
+    onOpenAbout: () -> Unit,
     viewModel: StatisticsViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val preferences by appViewModel.preferences.collectAsStateWithLifecycle()
     ScreenColumn(contentPadding) {
         Text("Resumen", style = MaterialTheme.typography.headlineMedium)
-        Text("Ultimos 7 dias", style = MaterialTheme.typography.titleMedium)
+        Text("Una mirada clara a tus ultimos 7 dias", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         StatisticCard("Promedio de agua", "${state.weeklyWaterAverage} ml por dia")
         StatisticCard("Promedio de sueno", if (state.weeklySleepAverage == 0L) "Sin datos" else formatDuration(state.weeklySleepAverage))
         StatisticCard("Cumplimiento de habitos", "${(state.habitCompletion * 100).toInt()}%")
         StatisticCard("Dias con actividad", "${state.daysWithData} de 7")
-        Card(modifier = Modifier.fillMaxWidth()) {
+        Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)) {
             Column(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Visualizacion", style = MaterialTheme.typography.titleMedium)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    androidx.compose.material3.Icon(Icons.Default.CalendarMonth, contentDescription = null)
+                    Text("Visualizacion", style = MaterialTheme.typography.titleMedium)
+                }
                 Text("Los indicadores describen registros locales. No determinan causas ni realizan evaluaciones clinicas.")
                 Button(onClick = onOpenCalendar) { Text("Abrir calendario") }
             }
         }
-        Card(modifier = Modifier.fillMaxWidth()) {
+        Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
             Column(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Tema", style = MaterialTheme.typography.titleMedium)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    androidx.compose.material3.Icon(Icons.Default.DarkMode, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                    Text("Tema", style = MaterialTheme.typography.titleMedium)
+                }
                 ThemeMode.entries.forEach { mode ->
                     FilterChip(
                         selected = preferences.themeMode == mode,
@@ -56,15 +70,16 @@ fun StatisticsScreen(
                 }
             }
         }
+        Button(onClick = onOpenAbout, modifier = Modifier.fillMaxWidth()) { Text("Acerca de LifeTrack") }
     }
 }
 
 @Composable
 private fun StatisticCard(title: String, value: String) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+        Row(modifier = Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween) {
             Text(title, style = MaterialTheme.typography.titleMedium)
-            Text(value, style = MaterialTheme.typography.bodyLarge)
+            Text(value, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
         }
     }
 }

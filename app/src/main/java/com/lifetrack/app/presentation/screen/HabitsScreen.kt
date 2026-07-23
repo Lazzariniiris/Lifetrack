@@ -12,12 +12,19 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -49,8 +56,14 @@ fun HabitsScreen(contentPadding: PaddingValues, viewModel: HabitsViewModel = hil
     ) {
         item {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("Habitos", style = MaterialTheme.typography.headlineMedium)
-                Button(onClick = { showCreateDialog = true }) { Text("Crear") }
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text("Habitos", style = MaterialTheme.typography.headlineMedium)
+                    Text("Pequenas acciones, progreso constante", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                FilledTonalButton(onClick = { showCreateDialog = true }) {
+                    Icon(Icons.Default.Add, contentDescription = null)
+                    Text("  Crear")
+                }
             }
         }
         state.error?.let { message ->
@@ -77,16 +90,37 @@ fun HabitsScreen(contentPadding: PaddingValues, viewModel: HabitsViewModel = hil
 
 @Composable
 private fun HabitCard(item: HabitListItem, onComplete: () -> Unit, onArchive: () -> Unit) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(item.habit.name, style = MaterialTheme.typography.titleLarge)
-            item.habit.description?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
+    val progress = (item.currentValue.toFloat() / item.habit.targetValue).coerceIn(0f, 1f)
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = if (item.isComplete) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surface,
+        ),
+    ) {
+        Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Icon(
+                    Icons.Default.CheckCircle,
+                    contentDescription = null,
+                    tint = if (item.isComplete) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+                )
+                Column {
+                    Text(item.habit.name, style = MaterialTheme.typography.titleMedium)
+                    item.habit.description?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                }
+            }
             val unit = when (item.habit.targetType) {
                 HabitTargetType.YES_NO -> "completado"
                 HabitTargetType.DURATION -> "min"
                 HabitTargetType.QUANTITY, HabitTargetType.REPETITIONS -> "registros"
             }
-            Text("${item.currentValue.coerceAtMost(item.habit.targetValue)} de ${item.habit.targetValue} $unit")
+            Text("${item.currentValue.coerceAtMost(item.habit.targetValue)} de ${item.habit.targetValue} $unit", style = MaterialTheme.typography.bodyMedium)
+            LinearProgressIndicator(
+                progress = { progress },
+                modifier = Modifier.fillMaxWidth(),
+                color = MaterialTheme.colorScheme.primary,
+                trackColor = MaterialTheme.colorScheme.surfaceVariant,
+            )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(onClick = onComplete, enabled = !item.isComplete) {
                     Text(if (item.isComplete) "Completado" else "Completar")

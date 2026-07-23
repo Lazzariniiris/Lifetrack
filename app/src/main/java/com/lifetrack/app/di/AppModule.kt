@@ -17,6 +17,14 @@ import com.lifetrack.app.domain.repository.SleepRepository
 import com.lifetrack.app.domain.repository.WaterRepository
 import com.lifetrack.app.notifications.ReminderScheduler
 import com.lifetrack.app.notifications.WorkManagerReminderScheduler
+import com.lifetrack.app.data.remote.SupabaseClientProvider
+import com.lifetrack.app.BuildConfig
+import com.lifetrack.app.data.remote.AuthApi
+import com.lifetrack.app.data.repository.SupabaseAuthRepository
+import com.lifetrack.app.domain.repository.AuthRepository
+import com.lifetrack.app.data.remote.MealApi
+import com.lifetrack.app.data.repository.RemoteMealRepository
+import com.lifetrack.app.domain.repository.MealRepository
 import dagger.Binds
 import dagger.Module
 import dagger.Provides
@@ -24,6 +32,10 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
+import kotlinx.serialization.json.Json
+import okhttp3.MediaType.Companion.toMediaType
+import retrofit2.Retrofit
+import retrofit2.converter.kotlinx.serialization.asConverterFactory
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -33,11 +45,23 @@ abstract class RepositoryModule {
     @Binds abstract fun bindSleepRepository(repository: LocalSleepRepository): SleepRepository
     @Binds abstract fun bindPreferencesRepository(repository: DataStorePreferencesRepository): PreferencesRepository
     @Binds abstract fun bindReminderScheduler(scheduler: WorkManagerReminderScheduler): ReminderScheduler
+    @Binds abstract fun bindAuthRepository(repository: SupabaseAuthRepository): AuthRepository
+    @Binds abstract fun bindMealRepository(repository: RemoteMealRepository): MealRepository
 }
 
 @Module
 @InstallIn(SingletonComponent::class)
 object DatabaseModule {
+    @Provides @Singleton fun provideSupabaseClientProvider(): SupabaseClientProvider = SupabaseClientProvider()
+    @Provides @Singleton fun provideJson(): Json = Json { ignoreUnknownKeys = true }
+    @Provides @Singleton fun provideAuthApi(json: Json): AuthApi = Retrofit.Builder()
+        .baseUrl(BuildConfig.SUPABASE_URL.takeIf { it.startsWith("https://") }?.plus("/") ?: "https://localhost/")
+        .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
+        .build().create(AuthApi::class.java)
+    @Provides @Singleton fun provideMealApi(json: Json): MealApi = Retrofit.Builder()
+        .baseUrl(BuildConfig.API_BASE_URL.takeIf { it.startsWith("https://") } ?: "https://localhost/")
+        .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
+        .build().create(MealApi::class.java)
     @Provides
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): LifeTrackDatabase =

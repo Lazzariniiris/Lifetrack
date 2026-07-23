@@ -16,6 +16,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -23,6 +26,8 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.WaterDrop
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -59,31 +64,44 @@ fun WaterScreen(contentPadding: PaddingValues, viewModel: WaterViewModel = hiltV
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("Hidratacion", style = MaterialTheme.typography.headlineMedium)
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text("Hidratacion", style = MaterialTheme.typography.headlineMedium)
+                    Text("Cada registro cuenta", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
                 TextButton(onClick = { showSettings = true }) { Text("Ajustes") }
             }
         }
         item {
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("${state.consumedMl} ml de ${state.preferences.waterGoalMl} ml", style = MaterialTheme.typography.titleLarge)
-                    LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth())
-                    Text("Restan ${(state.preferences.waterGoalMl - state.consumedMl).coerceAtLeast(0)} ml. Seguimiento general, no consejo medico.")
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(onClick = { viewModel.add(state.preferences.waterQuickAddMl) }) { Text("+${state.preferences.waterQuickAddMl} ml") }
-                        OutlinedButton(onClick = { showCustomAdd = true }) { Text("Otra cantidad") }
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer),
+            ) {
+                Row(modifier = Modifier.padding(20.dp), horizontalArrangement = Arrangement.spacedBy(18.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    androidx.compose.foundation.layout.Box(contentAlignment = androidx.compose.ui.Alignment.Center) {
+                        CircularProgressIndicator(progress = { progress }, color = MaterialTheme.colorScheme.tertiary, trackColor = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.16f), strokeWidth = 7.dp)
+                        Icon(Icons.Default.WaterDrop, contentDescription = null, tint = MaterialTheme.colorScheme.tertiary)
                     }
+                    Column(verticalArrangement = Arrangement.spacedBy(9.dp), modifier = Modifier.weight(1f)) {
+                        Text("${state.consumedMl} ml", style = MaterialTheme.typography.titleLarge)
+                        Text("de ${state.preferences.waterGoalMl} ml hoy", style = MaterialTheme.typography.bodyMedium)
+                        LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.tertiary, trackColor = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.18f))
+                        Text("Restan ${(state.preferences.waterGoalMl - state.consumedMl).coerceAtLeast(0)} ml", style = MaterialTheme.typography.labelLarge)
+                    }
+                }
+                Row(modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 20.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = { viewModel.add(state.preferences.waterQuickAddMl) }) { Text("+${state.preferences.waterQuickAddMl} ml") }
+                        OutlinedButton(onClick = { showCustomAdd = true }) { Text("Otra cantidad") }
                 }
             }
         }
         state.error?.let { message -> item { ErrorCard(message) } }
-        item { Text("Historial", style = MaterialTheme.typography.titleLarge) }
+        item { Text("Historial reciente", style = MaterialTheme.typography.titleLarge) }
         if (state.entries.isEmpty()) {
             item { EmptyState("No hay registros de agua todavia.") }
         } else {
             items(state.entries, key = { it.id }) { entry ->
-                Card(modifier = Modifier.fillMaxWidth()) {
+                Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
                     Row(modifier = Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                         Column { Text("${entry.amountMl} ml"); Text(formatDateTime(entry.loggedAt), style = MaterialTheme.typography.bodySmall) }
                         TextButton(onClick = { viewModel.delete(entry.id) }) { Text("Eliminar") }
@@ -157,10 +175,10 @@ private fun WaterSettingsDialog(
                 OutlinedTextField(goal, { goal = it.filter(Char::isDigit) }, label = { Text("Objetivo diario (ml)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
                 OutlinedTextField(quickAdd, { quickAdd = it.filter(Char::isDigit) }, label = { Text("Registro rapido (ml)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("Recordatorios cada hora")
+                    Text("Recordatorios adaptativos")
                     Switch(checked = reminders, onCheckedChange = { reminders = it })
                 }
-                Text("Se respetan horarios silenciosos y las restricciones de bateria de Android.", style = MaterialTheme.typography.bodySmall)
+                Text("Se ajustan al progreso, al ultimo registro y a tu ritmo habitual. Se respetan horarios silenciosos y las restricciones de Android.", style = MaterialTheme.typography.bodySmall)
             }
         },
         confirmButton = { Button(onClick = { onSave(goal.toIntOrNull() ?: 0, quickAdd.toIntOrNull() ?: 0, reminders) }) { Text("Guardar") } },

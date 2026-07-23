@@ -12,10 +12,14 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -44,16 +48,19 @@ fun SleepScreen(contentPadding: PaddingValues, viewModel: SleepViewModel = hiltV
     ) {
         item {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("Sueno", style = MaterialTheme.typography.headlineMedium)
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text("Sueno", style = MaterialTheme.typography.headlineMedium)
+                    Text("Conoce tu ritmo de descanso", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
                 Button(onClick = { showDialog = true }) { Text("Registrar") }
             }
         }
         item {
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Text(
-                    "Registra la hora de acostarte y levantarte. LifeTrack muestra seguimiento personal y no realiza diagnosticos.",
-                    modifier = Modifier.padding(16.dp),
-                )
+            Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
+                Row(modifier = Modifier.padding(18.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Icon(Icons.Default.Bedtime, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                    Text("Registra tus horarios para observar tu descanso. Es seguimiento personal, no diagnostico.", color = MaterialTheme.colorScheme.onSecondaryContainer)
+                }
             }
         }
         state.error?.let { message -> item { ErrorCard(message) } }
@@ -61,7 +68,10 @@ fun SleepScreen(contentPadding: PaddingValues, viewModel: SleepViewModel = hiltV
             item { EmptyState("No hay sesiones de sueno registradas.") }
         } else {
             items(state.entries, key = { it.id }) { entry ->
-                Card(modifier = Modifier.fillMaxWidth()) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                ) {
                     Row(modifier = Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                         Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
                             Text(formatDuration(entry.durationMinutes), style = MaterialTheme.typography.titleLarge)

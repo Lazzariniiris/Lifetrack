@@ -25,7 +25,6 @@ import com.lifetrack.app.domain.repository.HabitRepository
 import com.lifetrack.app.domain.repository.PreferencesRepository
 import com.lifetrack.app.domain.repository.SleepRepository
 import com.lifetrack.app.domain.repository.WaterRepository
-import com.lifetrack.app.notifications.ReminderScheduler
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -89,7 +88,6 @@ class LocalSleepRepository @Inject constructor(
 @Singleton
 class DataStorePreferencesRepository @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val reminderScheduler: ReminderScheduler,
 ) : PreferencesRepository {
     override val preferences: Flow<UserPreferences> = context.dataStore.data.map { preferences ->
         UserPreferences(
@@ -110,7 +108,6 @@ class DataStorePreferencesRepository @Inject constructor(
             preferences[WATER_QUICK_ADD_ML] = quickAddMl
             preferences[WATER_REMINDERS_ENABLED] = remindersEnabled
         }
-        reminderScheduler.updateWaterReminders(remindersEnabled)
     }
 
     override suspend fun updateThemeMode(mode: ThemeMode) {

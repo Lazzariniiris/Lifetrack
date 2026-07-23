@@ -6,6 +6,8 @@ import com.lifetrack.app.domain.model.HabitLog
 import com.lifetrack.app.domain.model.HabitTargetType
 import com.lifetrack.app.domain.model.SleepEntry
 import com.lifetrack.app.domain.model.WaterEntry
+import com.lifetrack.app.domain.model.UserPreferences
+import com.lifetrack.app.notifications.adaptiveWaterReminderDelay
 import com.lifetrack.app.domain.repository.HabitRepository
 import com.lifetrack.app.domain.repository.SleepRepository
 import com.lifetrack.app.domain.repository.WaterRepository
@@ -16,6 +18,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.ZoneId
 
 class TrackingUseCasesTest {
@@ -78,6 +81,44 @@ class TrackingUseCasesTest {
 
         assertEquals(1, summary.completedHabits)
         assertEquals(0.75f, summary.overallProgress, 0.001f)
+    }
+
+    @Test
+    fun `adaptive reminder uses minimum interval when hydration is behind pace`() {
+        val preferences = UserPreferences(waterGoalMl = 2_000, waterQuickAddMl = 250)
+        val delay = adaptiveWaterReminderDelay(
+            entries = emptyList(),
+            preferences = preferences,
+            now = LocalDateTime.of(2026, 7, 10, 10, 0),
+            zoneId = ZoneId.of("UTC"),
+        )
+
+        assertEquals(45L, delay)
+    }
+
+    @Test
+    fun `adaptive reminder schedules the next active day after water goal is reached`() {
+        val timestamp = LocalDateTime.of(2026, 7, 10, 9, 0).atZone(ZoneId.of("UTC")).toInstant().toEpochMilli()
+        val delay = adaptiveWaterReminderDelay(
+            entries = listOf(WaterEntry("water", 2_000, timestamp)),
+            preferences = UserPreferences(waterGoalMl = 2_000),
+            now = LocalDateTime.of(2026, 7, 10, 10, 0),
+            zoneId = ZoneId.of("UTC"),
+        )
+
+        assertEquals(1_260L, delay)
+    }
+
+    @Test
+    fun `adaptive reminder waits for next active window instead of notifying before quiet hours`() {
+        val delay = adaptiveWaterReminderDelay(
+            entries = emptyList(),
+            preferences = UserPreferences(),
+            now = LocalDateTime.of(2026, 7, 10, 21, 50),
+            zoneId = ZoneId.of("UTC"),
+        )
+
+        assertEquals(550L, delay)
     }
 }
 

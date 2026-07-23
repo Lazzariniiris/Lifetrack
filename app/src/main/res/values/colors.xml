@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="brand_ink">#090E1E</color>
+    <color name="brand_teal">#25CBB4</color>
+    <color name="brand_mint">#90E983</color>
+    <color name="brand_coral">#F45F8D</color>
+    <color name="brand_magenta">#D84AB8</color>
+    <color name="brand_sky">#38B9E3</color>
+    <color name="brand_gold">#F8CF54</color>
+    <color name="brand_white">#FAF9F5</color>
+</resources>

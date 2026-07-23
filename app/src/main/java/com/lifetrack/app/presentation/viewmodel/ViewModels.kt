@@ -12,7 +12,10 @@ import com.lifetrack.app.domain.repository.PreferencesRepository
 import com.lifetrack.app.domain.usecase.HabitUseCases
 import com.lifetrack.app.domain.usecase.SleepUseCases
 import com.lifetrack.app.domain.usecase.WaterUseCases
+import com.lifetrack.app.domain.usecase.dailyMotivation
+import com.lifetrack.app.domain.usecase.hydrationStreak
 import com.lifetrack.app.domain.usecase.summarizeDay
+import com.lifetrack.app.notifications.ReminderScheduler
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -32,12 +35,17 @@ private fun Long.toLocalDate(): LocalDate = Instant.ofEpochMilli(this)
 @HiltViewModel
 class AppViewModel @Inject constructor(
     private val preferencesRepository: PreferencesRepository,
+    private val reminderScheduler: ReminderScheduler,
 ) : ViewModel() {
     val preferences: StateFlow<UserPreferences> = preferencesRepository.preferences.stateIn(
         viewModelScope,
         SharingStarted.WhileSubscribed(5_000),
         UserPreferences(),
     )
+
+    init {
+        viewModelScope.launch { reminderScheduler.refreshWaterReminder() }
+    }
 
     fun setTheme(mode: ThemeMode) = viewModelScope.launch {
         preferencesRepository.updateThemeMode(mode)
@@ -52,6 +60,8 @@ data class HomeUiState(
     val waterMl: Int = 0,
     val waterGoalMl: Int = 2_000,
     val nextAction: String = "Crea un habito o registra tu primera actividad.",
+    val dailyMotivation: String = "Un pequeno paso hoy tambien cuenta.",
+    val hydrationStreak: Int = 0,
 )
 
 @HiltViewModel
@@ -89,6 +99,8 @@ class HomeViewModel @Inject constructor(
             waterMl = summary.waterMl,
             waterGoalMl = summary.waterGoalMl,
             nextAction = nextAction,
+            dailyMotivation = dailyMotivation(),
+            hydrationStreak = hydrationStreak(water, preferences.waterGoalMl),
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeUiState())
 }
@@ -154,6 +166,7 @@ data class WaterUiState(
 class WaterViewModel @Inject constructor(
     private val useCases: WaterUseCases,
     private val preferencesRepository: PreferencesRepository,
+    private val reminderScheduler: ReminderScheduler,
 ) : ViewModel() {
     private val error = MutableStateFlow<String?>(null)
     val uiState: StateFlow<WaterUiState> = combine(
@@ -172,17 +185,24 @@ class WaterViewModel @Inject constructor(
     fun add(amountMl: Int) = viewModelScope.launch {
         when (val result = useCases.addEntry(amountMl)) {
             is AppResult.Error -> error.value = result.message
-            is AppResult.Success -> error.value = null
+            is AppResult.Success -> {
+                reminderScheduler.refreshWaterReminder()
+                error.value = null
+            }
         }
     }
 
-    fun delete(id: String) = viewModelScope.launch { useCases.deleteEntry(id) }
+    fun delete(id: String) = viewModelScope.launch {
+        useCases.deleteEntry(id)
+        reminderScheduler.refreshWaterReminder()
+    }
 
     fun updateSettings(goalMl: Int, quickAddMl: Int, remindersEnabled: Boolean) = viewModelScope.launch {
         if (goalMl !in 250..10_000 || quickAddMl !in 50..1_000) {
             error.value = "Objetivo entre 250 y 10.000 ml; registro rapido entre 50 y 1.000 ml."
         } else {
             preferencesRepository.updateWaterSettings(goalMl, quickAddMl, remindersEnabled)
+            reminderScheduler.updateWaterReminders(remindersEnabled)
             error.value = null
         }
     }

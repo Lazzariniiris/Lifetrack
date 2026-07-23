@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -39,6 +40,8 @@ fun CalendarScreen(contentPadding: PaddingValues, onBack: () -> Unit, viewModel:
     var month by rememberMonth(YearMonth.now())
     var selectedDate by rememberDate(LocalDate.now())
     ScreenColumn(contentPadding) {
+        Text("Calendario", style = MaterialTheme.typography.headlineMedium)
+        Text("Tu actividad diaria, de un vistazo", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             TextButton(onClick = { month = month.minusMonths(1) }) { Text("Anterior") }
             Text(month.format(DateTimeFormatter.ofPattern("MMM yyyy", Locale.getDefault())), style = MaterialTheme.typography.titleLarge)
@@ -50,7 +53,7 @@ fun CalendarScreen(contentPadding: PaddingValues, onBack: () -> Unit, viewModel:
         }
         CalendarGrid(month, selectedDate, state.activityByDate, onSelect = { selectedDate = it })
         val activities = state.activityByDate[selectedDate] ?: 0
-        Card(modifier = Modifier.fillMaxWidth()) {
+        Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(selectedDate.format(DateTimeFormatter.ofPattern("dd MMMM yyyy", Locale.getDefault())), style = MaterialTheme.typography.titleMedium)
                 Text(if (activities == 0) "Sin registros para este dia." else "$activities registros de seguimiento.")

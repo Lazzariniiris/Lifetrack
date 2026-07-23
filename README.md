@@ -4,10 +4,12 @@ LifeTrack is a local-first Android application for personal tracking of habits, 
 
 ## Included MVP
 
-- Material 3 interface with light, dark and dynamic system color themes.
+- Material 3 interface with official LifeTrack light and dark themes.
+- Official LifeTrack brand system: adaptive launcher icons, Android 13 monochrome icon, branded splash, top bar and About screen.
 - Daily home summary with overall progress and quick actions.
 - Custom habits with daily goals, completion, archive state and local history.
-- Hydration goal, quick/custom entries, configurable local hourly reminders and entry deletion.
+- Hydration goal, quick/custom entries, adaptive local reminders and entry deletion.
+- Daily local motivation and visible hydration streaks.
 - Sleep sessions that support crossing midnight, perceived quality, notes and deletion.
 - Weekly summary statistics and an accessible monthly activity calendar.
 - Room persistence, DataStore preferences, Hilt dependency injection, WorkManager reminders and Compose Navigation.
@@ -42,5 +44,9 @@ $env:Path = "$env:JAVA_HOME\bin;$env:Path"
 
 - Tracking records and preferences remain in the local Room database and DataStore files.
 - Notifications are optional. Android 13+ asks for notification permission when reminders are enabled.
-- Hourly reminders are deferred WorkManager jobs, so Android battery management can delay them. They are suppressed when the daily water goal is met or during the configured quiet period.
+- Adaptive reminders are deferred WorkManager jobs, so Android battery management can delay them. They recalculate after water changes, respect a 45-minute minimum interval and resume at the next active period after a daily goal or quiet period.
 - Hydration and sleep information is general personal tracking, not medical advice or diagnosis.
+
+## Optional Cloud Analysis
+
+`backend/` contains the FastAPI service for optional, consent-based meal-image analysis using OpenAI Vision, Railway and Supabase. It is not deployed or configured until Railway and Supabase credentials are supplied. See `backend/README.md` and `docs/cloud-architecture.md`.
