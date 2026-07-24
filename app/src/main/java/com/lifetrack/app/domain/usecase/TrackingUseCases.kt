@@ -129,16 +129,18 @@ data class DailyTrackingSummary(
     val totalHabits: Int,
     val waterMl: Int,
     val waterGoalMl: Int,
-    val hasSleep: Boolean,
+    val sleepMinutes: Long,
 ) {
     val habitProgress: Float get() = if (totalHabits == 0) 0f else completedHabits.toFloat() / totalHabits
     val waterProgress: Float get() = (waterMl.toFloat() / waterGoalMl).coerceIn(0f, 1f)
+    val sleepProgress: Float get() = (sleepMinutes.toFloat() / (8 * 60)).coerceIn(0f, 1f)
+    val hasSleep: Boolean get() = sleepMinutes > 0
     val overallProgress: Float
         get() {
             val values = buildList {
                 if (totalHabits > 0) add(habitProgress)
                 add(waterProgress)
-                if (hasSleep) add(1f)
+                add(sleepProgress)
             }
             return values.average().toFloat()
         }
@@ -163,6 +165,6 @@ fun summarizeDay(
         totalHabits = habits.size,
         waterMl = waterEntries.filter { it.loggedAt.isOnDate() }.sumOf { it.amountMl },
         waterGoalMl = waterGoalMl,
-        hasSleep = sleepEntries.any { it.wakeTime.isOnDate() },
+        sleepMinutes = sleepEntries.filter { it.wakeTime.isOnDate() }.sumOf { it.durationMinutes },
     )
 }

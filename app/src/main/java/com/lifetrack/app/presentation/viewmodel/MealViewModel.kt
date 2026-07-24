@@ -36,6 +36,7 @@ data class MealUiState(
     val history: List<MealAnalysisResult> = emptyList(),
     val serviceConfigured: Boolean = true,
     val ownerUserId: String? = null,
+    val authInitialized: Boolean = false,
 )
 
 @HiltViewModel
@@ -54,7 +55,18 @@ class MealViewModel @Inject constructor(
         viewModelScope.launch { cleanOrphanedPhotos() }
         viewModelScope.launch {
             auth.user.collectLatest { user ->
-                mutableState.update { it.copy(ownerUserId = user?.id) }
+                val previousOwner = mutableState.value.ownerUserId
+                if (previousOwner != user?.id) {
+                    val current = mutableState.value
+                    if (current.queuedId == null) current.photoPath?.let { File(it).delete() }
+                    mutableState.value = MealUiState(
+                        serviceConfigured = repository.configured,
+                        ownerUserId = user?.id,
+                        authInitialized = true,
+                    )
+                } else {
+                    mutableState.update { it.copy(authInitialized = true) }
+                }
                 if (user != null) {
                     scheduler.enqueue()
                     syncRemoteHistory(user.id)
@@ -182,9 +194,15 @@ class MealViewModel @Inject constructor(
 
     fun removeQueued(id: String) = viewModelScope.launch {
         val queued = mutableState.value.queue.firstOrNull { it.id == id }
-        repository.delete(id)
-        queueRepository.remove(id)
-        queued?.photoPath?.let { File(it).delete() }
+        mutableState.update { it.copy(loading = true, error = null, notice = null) }
+        when (val result = repository.delete(id)) {
+            is AppResult.Error -> mutableState.update { it.copy(loading = false, error = "No pudimos eliminar la fotografía de forma segura. Reintentá cuando tengas conexión.") }
+            is AppResult.Success -> {
+                queueRepository.remove(id)
+                queued?.photoPath?.let { File(it).delete() }
+                mutableState.update { it.copy(loading = false, notice = "Fotografía pendiente eliminada.") }
+            }
+        }
     }
 
     fun deleteMeal(id: String) = viewModelScope.launch {
@@ -200,6 +218,7 @@ class MealViewModel @Inject constructor(
     }
 
     fun setCaptureError(message: String) = mutableState.update { it.copy(error = message) }
+    fun clearFeedback() = mutableState.update { it.copy(error = null, notice = null) }
 
     fun startOver() {
         val state = mutableState.value

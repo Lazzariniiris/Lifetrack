@@ -14,6 +14,8 @@ import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Sync
+import androidx.compose.material.icons.rounded.Visibility
+import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
@@ -25,6 +27,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.IconButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -240,16 +243,26 @@ private fun ProfileDetails(state: com.lifetrack.app.presentation.viewmodel.Profi
     var height by rememberSaveable(profile.id, profile.heightCm) { mutableStateOf(profile.heightCm?.toString().orEmpty()) }
     var calorieGoal by rememberSaveable(profile.id, profile.dailyCalorieGoal) { mutableStateOf(profile.dailyCalorieGoal?.toString().orEmpty()) }
     var activity by rememberSaveable(profile.id, profile.activityLevel) { mutableStateOf(profile.activityLevel ?: "moderate") }
+    var validationRequested by rememberSaveable(profile.id) { mutableStateOf(false) }
+    val parsedWeight = weight.replace(',', '.').toDoubleOrNull()
+    val parsedHeight = height.replace(',', '.').toDoubleOrNull()
+    val parsedCalories = calorieGoal.toIntOrNull()
+    val validName = name.trim().length in 1..80
+    val validGoal = goal.length <= 200
+    val validWeight = weight.isBlank() || (parsedWeight != null && parsedWeight in 20.0..500.0)
+    val validHeight = height.isBlank() || (parsedHeight != null && parsedHeight in 80.0..250.0)
+    val validCalories = calorieGoal.isBlank() || parsedCalories in 500..10_000
+    val valid = validName && validGoal && validWeight && validHeight && validCalories
 
     SectionHeader("Datos de salud")
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text("Miembro desde ${profile.createdAt.take(10)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            OutlinedTextField(name, { name = it }, label = { Text("Nombre") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-            OutlinedTextField(goal, { goal = it }, label = { Text("Objetivo") }, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(weight, { weight = it.filter { char -> char.isDigit() || char == '.' } }, label = { Text("Peso (kg)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth(), singleLine = true)
-            OutlinedTextField(height, { height = it.filter { char -> char.isDigit() || char == '.' } }, label = { Text("Altura (cm)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth(), singleLine = true)
-            OutlinedTextField(calorieGoal, { calorieGoal = it.filter(Char::isDigit) }, label = { Text("Objetivo calórico diario") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth(), singleLine = true)
+            OutlinedTextField(name, { name = it }, label = { Text("Nombre") }, modifier = Modifier.fillMaxWidth(), singleLine = true, isError = validationRequested && !validName, supportingText = { if (validationRequested && !validName) Text("Ingresá entre 1 y 80 caracteres") })
+            OutlinedTextField(goal, { goal = it }, label = { Text("Objetivo") }, modifier = Modifier.fillMaxWidth(), isError = validationRequested && !validGoal, supportingText = { if (validationRequested && !validGoal) Text("Máximo 200 caracteres") })
+            OutlinedTextField(weight, { weight = it.filter { char -> char.isDigit() || char == '.' || char == ',' } }, label = { Text("Peso (kg)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth(), singleLine = true, isError = validationRequested && !validWeight, supportingText = { if (validationRequested && !validWeight) Text("Entre 20 y 500 kg") })
+            OutlinedTextField(height, { height = it.filter { char -> char.isDigit() || char == '.' || char == ',' } }, label = { Text("Altura (cm)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth(), singleLine = true, isError = validationRequested && !validHeight, supportingText = { if (validationRequested && !validHeight) Text("Entre 80 y 250 cm") })
+            OutlinedTextField(calorieGoal, { calorieGoal = it.filter(Char::isDigit) }, label = { Text("Objetivo calórico diario") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth(), singleLine = true, isError = validationRequested && !validCalories, supportingText = { if (validationRequested && !validCalories) Text("Entre 500 y 10.000 kcal") })
             Text("Actividad física", style = MaterialTheme.typography.labelLarge)
             androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 listOf("sedentary" to "Sedentaria", "light" to "Ligera", "moderate" to "Moderada", "active" to "Activa", "very_active" to "Muy activa").forEach { (value, label) ->
@@ -258,20 +271,26 @@ private fun ProfileDetails(state: com.lifetrack.app.presentation.viewmodel.Profi
             }
             Button(
                 onClick = {
-                    viewModel.save(
+                    validationRequested = true
+                    if (valid) viewModel.save(
                         ProfileUpdate(
-                            displayName = name,
+                            displayName = name.trim(),
                             healthGoal = goal,
-                            weightKg = weight.toDoubleOrNull(),
-                            heightCm = height.toDoubleOrNull(),
+                            weightKg = parsedWeight,
+                            heightCm = parsedHeight,
                             activityLevel = activity,
                             dailyCalorieGoal = calorieGoal.toIntOrNull(),
                         ),
                     )
                 },
-                enabled = !state.loading && name.isNotBlank(),
+                enabled = !state.loading,
                 modifier = Modifier.fillMaxWidth(),
-            ) { Text("Guardar perfil") }
+            ) {
+                if (state.loading) {
+                    CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                    Text("  Guardando…")
+                } else Text("Guardar perfil")
+            }
             state.message?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
             state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         }
@@ -339,6 +358,7 @@ private fun AuthTextField(
     password: Boolean = false,
     imeAction: ImeAction = ImeAction.Next,
 ) {
+    var passwordVisible by rememberSaveable(label) { mutableStateOf(false) }
     val fieldModifier = Modifier
         .fillMaxWidth()
         .padding(horizontal = 16.dp)
@@ -350,7 +370,14 @@ private fun AuthTextField(
         isError = errorMessage != null,
         supportingText = errorMessage?.let { message -> { Text(message) } },
         keyboardOptions = KeyboardOptions(keyboardType = keyboardType, imeAction = imeAction),
-        visualTransformation = if (password) PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
+        visualTransformation = if (password && !passwordVisible) PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
+        trailingIcon = if (password) {
+            {
+                IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                    Icon(if (passwordVisible) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility, if (passwordVisible) "Ocultar contraseña" else "Mostrar contraseña")
+                }
+            }
+        } else null,
         modifier = fieldModifier,
         singleLine = true,
     )

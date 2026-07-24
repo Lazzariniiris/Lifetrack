@@ -11,6 +11,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
@@ -51,6 +54,7 @@ fun WaterScreen(contentPadding: PaddingValues, viewModel: WaterViewModel = hiltV
     val context = LocalContext.current
     var showSettings by rememberSaveableBoolean(false)
     var showCustomAdd by rememberSaveableBoolean(false)
+    var entryToDelete by rememberSaveableString("")
     var pendingReminderSettings by rememberReminderSettings()
     val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         pendingReminderSettings?.let { settings ->
@@ -66,7 +70,7 @@ fun WaterScreen(contentPadding: PaddingValues, viewModel: WaterViewModel = hiltV
     ) {
         item {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     PageHeader("Hidratación", "Cada vaso te acerca a tu objetivo")
                 }
                 TextButton(onClick = { showSettings = true }) {
@@ -93,7 +97,7 @@ fun WaterScreen(contentPadding: PaddingValues, viewModel: WaterViewModel = hiltV
                     }
                 }
                 Row(modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 10.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    listOf(150, 250, 500).forEach { amount ->
+                    listOf(state.preferences.waterQuickAddMl, 150, 250, 500).distinct().take(3).forEach { amount ->
                         Button(onClick = { viewModel.add(amount) }, modifier = Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 4.dp)) { Text("+$amount") }
                     }
                 }
@@ -102,14 +106,16 @@ fun WaterScreen(contentPadding: PaddingValues, viewModel: WaterViewModel = hiltV
         }
         state.error?.let { message -> item { ErrorCard(message) } }
         item { SectionHeader("Historial reciente") }
-        if (state.entries.isEmpty()) {
+        if (!state.initialized) {
+            item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
+        } else if (state.entries.isEmpty()) {
             item { EmptyState("Todavía no hay registros de agua para mostrar.") }
         } else {
             items(state.entries, key = { it.id }) { entry ->
                 Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
                     Row(modifier = Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                         Column { Text("${entry.amountMl} ml"); Text(formatDateTime(entry.loggedAt), style = MaterialTheme.typography.bodySmall) }
-                        TextButton(onClick = { viewModel.delete(entry.id) }) { Text("Eliminar") }
+                        TextButton(onClick = { entryToDelete = entry.id }) { Text("Eliminar") }
                     }
                 }
             }
@@ -138,6 +144,15 @@ fun WaterScreen(contentPadding: PaddingValues, viewModel: WaterViewModel = hiltV
                 }
                 showSettings = false
             },
+        )
+    }
+    if (entryToDelete.isNotEmpty()) {
+        AlertDialog(
+            onDismissRequest = { entryToDelete = "" },
+            title = { Text("Eliminar registro de agua") },
+            text = { Text("Este registro se quitará del total y del historial.") },
+            confirmButton = { Button(onClick = { viewModel.delete(entryToDelete); entryToDelete = "" }) { Text("Eliminar") } },
+            dismissButton = { TextButton(onClick = { entryToDelete = "" }) { Text("Cancelar") } },
         )
     }
 }
@@ -186,7 +201,7 @@ private fun WaterSettingsDialog(
         onDismissRequest = onDismiss,
         title = { Text("Ajustes de hidratación") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(modifier = Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(goal, { goal = it.filter(Char::isDigit) }, label = { Text("Objetivo diario (ml)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), isError = attempted && !validGoal, supportingText = { if (attempted && !validGoal) Text("Entre 250 y 10.000 ml") })
                 OutlinedTextField(quickAdd, { quickAdd = it.filter(Char::isDigit) }, label = { Text("Registro rápido (ml)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), isError = attempted && !validQuickAdd, supportingText = { if (attempted && !validQuickAdd) Text("Entre 50 y 1.000 ml") })
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {

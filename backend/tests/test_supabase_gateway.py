@@ -124,6 +124,8 @@ async def test_list_patch_delete_use_owner_filters_and_rls_token():
         assert request.headers["authorization"] == "Bearer user-token"
         assert request.url.params["user_id"] == f"eq.{USER_ID}"
         if request.method == "GET":
+            if request.url.params.get("select") == "photo_path":
+                return httpx.Response(200, json=[{"photo_path": None}])
             assert request.url.params["limit"] == "10"
             assert request.url.params["offset"] == "20"
             return httpx.Response(200, json=[meal_row()], headers={"Content-Range": "20-20/21"})
@@ -153,7 +155,7 @@ async def test_list_patch_delete_use_owner_filters_and_rls_token():
     assert page.items[0].id == MEAL_ID
     assert updated.status == "corrected"
     assert updated.corrections.note == "Adjusted manually"
-    assert calls == Counter({"GET": 1, "PATCH": 1, "DELETE": 1})
+    assert calls == Counter({"GET": 2, "PATCH": 1, "DELETE": 1})
 
 
 @pytest.mark.asyncio

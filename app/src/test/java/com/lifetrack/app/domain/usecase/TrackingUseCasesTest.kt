@@ -80,7 +80,7 @@ class TrackingUseCasesTest {
         )
 
         assertEquals(1, summary.completedHabits)
-        assertEquals(0.75f, summary.overallProgress, 0.001f)
+        assertEquals(0.5f, summary.overallProgress, 0.001f)
     }
 
     @Test

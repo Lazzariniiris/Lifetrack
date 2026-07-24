@@ -14,4 +14,4 @@ dev = ["pytest>=8.3.0", "pytest-asyncio>=0.24.0"]
 pythonpath = ["."]
 asyncio_mode = "auto"
 testpaths = ["tests"]
-filterwarnings = ["ignore:Using `httpx` with `starlette.testclient` is deprecated:DeprecationWarning"]
+filterwarnings = ["ignore:Using `httpx` with `starlette.testclient` is deprecated"]

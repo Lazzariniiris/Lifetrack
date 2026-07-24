@@ -22,7 +22,7 @@ class ProfileViewModel @Inject constructor(private val repository: ProfileReposi
     val state: StateFlow<ProfileUiState> = mutableState.asStateFlow()
 
     fun load() = viewModelScope.launch {
-        mutableState.update { it.copy(loading = true, error = null) }
+        mutableState.value = ProfileUiState(loading = true)
         when (val result = repository.get()) {
             is ProfileResult.Success -> mutableState.value = ProfileUiState(profile = result.value)
             is ProfileResult.Error -> mutableState.update { it.copy(loading = false, error = result.message) }

@@ -7,11 +7,14 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.calculateEndPadding
+import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Add
@@ -43,8 +46,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
@@ -71,19 +76,6 @@ private val mainDestinations = listOf(
     Destination("habits", "Hábitos", Icons.Rounded.CheckCircle),
     Destination("statistics", "Estadísticas", Icons.Rounded.BarChart),
     Destination("profile", "Perfil", Icons.Rounded.Person),
-)
-
-private val routeTitles = mapOf(
-    "habits" to "Hábitos",
-    "statistics" to "Estadísticas",
-    "profile" to "Perfil",
-    "water" to "Agua",
-    "sleep" to "Sueño",
-    "meals" to "Comidas",
-    "meal-camera" to "Cámara",
-    "calendar" to "Calendario",
-    "settings" to "Configuración",
-    "about" to "Acerca de",
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -115,7 +107,7 @@ fun LifeTrackNavigation(
         topBar = {
             if (!isMainRoute && route != "meal-camera") {
                 CenterAlignedTopAppBar(
-                    title = { Text(routeTitles[route].orEmpty()) },
+                    title = {},
                     navigationIcon = {
                         if (!isMainRoute) {
                             IconButton(onClick = { navController.popBackStack() }) {
@@ -156,6 +148,13 @@ fun LifeTrackNavigation(
             }
         },
     ) { innerPadding ->
+        val layoutDirection = LocalLayoutDirection.current
+        val screenPadding = PaddingValues(
+            start = innerPadding.calculateStartPadding(layoutDirection),
+            top = innerPadding.calculateTopPadding(),
+            end = innerPadding.calculateEndPadding(layoutDirection),
+            bottom = innerPadding.calculateBottomPadding() + if (isMainRoute) 88.dp else 0.dp,
+        )
         NavHost(
             navController = navController,
             startDestination = "home",
@@ -164,27 +163,27 @@ fun LifeTrackNavigation(
             popEnterTransition = { fadeIn() + slideInHorizontally { -it / 12 } },
             popExitTransition = { fadeOut() + slideOutHorizontally { it / 12 } },
         ) {
-            composable("home") { HomeScreen(innerPadding, navController::navigate) }
-            composable("habits") { HabitsScreen(innerPadding) }
+            composable("home") { HomeScreen(screenPadding, navController::navigate) }
+            composable("habits") { HabitsScreen(screenPadding) }
             composable("statistics") {
-                StatisticsScreen(innerPadding, onOpenCalendar = { navController.navigate("calendar") })
+                StatisticsScreen(screenPadding, onOpenCalendar = { navController.navigate("calendar") })
             }
             composable("profile") {
                 ProfileScreen(
-                    innerPadding,
+                    screenPadding,
                     onOpenSettings = { navController.navigate("settings") },
                     onOpenAbout = { navController.navigate("about") },
                     recoveryLink = recoveryLink,
                     onRecoveryLinkConsumed = onRecoveryLinkConsumed,
                 )
             }
-            composable("water") { WaterScreen(innerPadding) }
-            composable("sleep") { SleepScreen(innerPadding) }
-            composable("meals") { MealsScreen(innerPadding, onOpenCamera = { navController.navigate("meal-camera") }) }
-            composable("meal-camera") { MealCameraScreen(innerPadding, onBack = { navController.popBackStack() }) }
-            composable("calendar") { CalendarScreen(innerPadding) }
-            composable("settings") { SettingsScreen(innerPadding, appViewModel) }
-            composable("about") { AboutScreen(innerPadding) }
+            composable("water") { WaterScreen(screenPadding) }
+            composable("sleep") { SleepScreen(screenPadding) }
+            composable("meals") { MealsScreen(screenPadding, onOpenCamera = { navController.navigate("meal-camera") }) }
+            composable("meal-camera") { MealCameraScreen(screenPadding, onBack = { navController.popBackStack() }) }
+            composable("calendar") { CalendarScreen(screenPadding) }
+            composable("settings") { SettingsScreen(screenPadding, appViewModel) }
+            composable("about") { AboutScreen(screenPadding) }
         }
     }
 
@@ -199,7 +198,7 @@ fun LifeTrackNavigation(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
 private fun RegisterSheet(onDismiss: () -> Unit, onNavigate: (String) -> Unit) {
     ModalBottomSheet(onDismissRequest = onDismiss) {
@@ -209,9 +208,10 @@ private fun RegisterSheet(onDismiss: () -> Unit, onNavigate: (String) -> Unit) {
                 style = MaterialTheme.typography.headlineSmall,
                 modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
             )
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly,
+            FlowRow(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 RegisterAction("Agua", Icons.Rounded.WaterDrop) { onNavigate("water") }
                 RegisterAction("Sueño", Icons.Rounded.Bedtime) { onNavigate("sleep") }
@@ -223,8 +223,8 @@ private fun RegisterSheet(onDismiss: () -> Unit, onNavigate: (String) -> Unit) {
 }
 
 @Composable
-private fun RowScope.RegisterAction(label: String, icon: ImageVector, onClick: () -> Unit) {
-    Column(modifier = Modifier.weight(1f), horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {
+private fun RegisterAction(label: String, icon: ImageVector, onClick: () -> Unit) {
+    Column(modifier = Modifier.width(120.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         FilledTonalIconButton(onClick = onClick) { Icon(icon, contentDescription = label) }
         Text(label, style = MaterialTheme.typography.labelMedium)
     }

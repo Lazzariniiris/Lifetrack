@@ -36,7 +36,7 @@ class RemoteMealRepository @Inject constructor(
         val file = File(photoPath)
         if (!file.exists()) return AppResult.Error("La fotografía ya no está disponible.")
         val cloudPath = "$ownerUserId/$id.jpg"
-        return executeRemote {
+        return executeRemote(MealOperation.PREPARE) {
             val authorization = "Bearer $token"
             val upload = cloudApi.uploadImage(
                 BuildConfig.SUPABASE_ANON_KEY,
@@ -60,7 +60,7 @@ class RemoteMealRepository @Inject constructor(
         val token = auth.validAccessToken() ?: return AppResult.Error("Iniciá sesión para analizar esta comida.")
         val file = File(photoPath)
         if (!file.exists()) return AppResult.Error("La fotografía ya no está disponible. Podés tomar otra.")
-        return executeRemote {
+        return executeRemote(MealOperation.ANALYZE) {
             val image = MultipartBody.Part.createFormData("image", "meal.jpg", file.asRequestBody("image/jpeg".toMediaType()))
             api.analyze("Bearer $token", image, "true".toRequestBody("text/plain".toMediaType()))
         }
@@ -70,7 +70,7 @@ class RemoteMealRepository @Inject constructor(
         if (!configured) return AppResult.Error("El servicio de comidas no está disponible.", retryable = true)
         val token = auth.validAccessToken() ?: return AppResult.Error("Iniciá sesión para guardar la comida.")
         val id = result.id ?: return AppResult.Error("No pudimos identificar este análisis. Volvé a intentarlo.")
-        return executeRemote {
+        return executeRemote(MealOperation.SAVE) {
             api.save(
                 "Bearer $token",
                 MealCreateRequest(id, result.foods, result.nutrition, result.confidence, result.observations, result.photoPath),
@@ -81,26 +81,26 @@ class RemoteMealRepository @Inject constructor(
     override suspend fun list(): AppResult<List<MealAnalysisResult>> {
         if (!configured) return AppResult.Error("El historial remoto no está disponible.", retryable = true)
         val token = auth.validAccessToken() ?: return AppResult.Error("Iniciá sesión para recuperar tus comidas.")
-        return executeRemote { api.list("Bearer $token").items }
+        return executeRemote(MealOperation.LIST) { api.list("Bearer $token").items }
     }
 
     override suspend fun delete(id: String): AppResult<Unit> {
         if (!configured) return AppResult.Error("No pudimos eliminar la comida ahora.", retryable = true)
         val token = auth.validAccessToken() ?: return AppResult.Error("Iniciá sesión para eliminar la comida.")
-        return executeRemote {
+        return executeRemote(MealOperation.DELETE) {
             val response = api.delete("Bearer $token", id)
             if (!response.isSuccessful && response.code() != 404) throw HttpStatusException(response.code())
         }
     }
 
-    private suspend fun <T> executeRemote(block: suspend () -> T): AppResult<T> = try {
+    private suspend fun <T> executeRemote(operation: MealOperation, block: suspend () -> T): AppResult<T> = try {
         AppResult.Success(block())
     } catch (cancellation: CancellationException) {
         throw cancellation
     } catch (error: HttpException) {
-        mealHttpError(error.code())
+        mealHttpError(error.code(), operation)
     } catch (error: HttpStatusException) {
-        mealHttpError(error.status)
+        mealHttpError(error.status, operation)
     } catch (_: SocketTimeoutException) {
         AppResult.Error("El servicio tardó demasiado. Reintentaremos automáticamente.", retryable = true)
     } catch (_: IOException) {
@@ -111,9 +111,13 @@ class RemoteMealRepository @Inject constructor(
 }
 
 private class HttpStatusException(val status: Int) : RuntimeException()
+internal enum class MealOperation { PREPARE, ANALYZE, SAVE, LIST, DELETE }
 
-internal fun mealHttpError(status: Int): AppResult.Error = when (status) {
-    400, 415, 422 -> AppResult.Error("La fotografía no pudo procesarse. Elegí otra imagen con buena iluminación.")
+internal fun mealHttpError(status: Int, operation: MealOperation = MealOperation.ANALYZE): AppResult.Error = when (status) {
+    400, 415, 422 -> AppResult.Error(
+        if (operation == MealOperation.SAVE) "Revisá los alimentos, porciones y valores nutricionales antes de guardar."
+        else "La fotografía no pudo procesarse. Elegí otra imagen con buena iluminación.",
+    )
     401, 403 -> AppResult.Error("Tu sesión venció. Iniciá sesión nuevamente.")
     413 -> AppResult.Error("La fotografía es demasiado grande. Tomá otra o elegí una imagen más liviana.")
     429 -> AppResult.Error("El servicio está ocupado. Reintentaremos en unos minutos.", retryable = true)

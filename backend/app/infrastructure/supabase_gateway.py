@@ -231,18 +231,18 @@ class SupabaseGateway:
         return self._meal_from_row(rows[0])
 
     async def delete_meal(self, meal_id: UUID, user_id: str, token: str) -> None:
-        response = await self._send(
-            "DELETE",
+        lookup = await self._send(
+            "GET",
             "/rest/v1/meal_analyses",
-            params={"id": f"eq.{meal_id}", "user_id": f"eq.{user_id}"},
-            headers=self._headers(token, "return=representation"),
+            params={"select": "photo_path", "id": f"eq.{meal_id}", "user_id": f"eq.{user_id}", "limit": "1"},
+            headers=self._headers(token),
         )
-        if response.status_code != 200:
+        if lookup.status_code != 200:
             raise data_unavailable()
-        rows = self._json_rows(response)
-        if not rows:
+        existing = self._json_rows(lookup)
+        if not existing:
             raise AppError(404, "MEAL_NOT_FOUND", "Meal not found.")
-        photo_path = rows[0].get("photo_path")
+        photo_path = existing[0].get("photo_path")
         if isinstance(photo_path, str) and photo_path:
             storage_response = await self._send(
                 "DELETE",
@@ -251,6 +251,17 @@ class SupabaseGateway:
             )
             if storage_response.status_code not in {200, 204, 404}:
                 raise data_unavailable()
+
+        response = await self._send(
+            "DELETE",
+            "/rest/v1/meal_analyses",
+            params={"id": f"eq.{meal_id}", "user_id": f"eq.{user_id}"},
+            headers=self._headers(token, "return=representation"),
+        )
+        if response.status_code != 200:
+            raise data_unavailable()
+        if not self._json_rows(response):
+            raise AppError(404, "MEAL_NOT_FOUND", "Meal not found.")
 
     @staticmethod
     def _validate_photo_path(user_id: str, photo_path: str | None) -> None:

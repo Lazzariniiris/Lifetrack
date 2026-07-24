@@ -17,6 +17,7 @@ import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -57,6 +58,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -80,17 +82,17 @@ fun MealCameraScreen(contentPadding: PaddingValues, onBack: () -> Unit, viewMode
     }
     val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { permissionGranted = it }
     val gallery = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-        uri?.let { selected -> copyImageAsJpeg(context, selected)?.let { viewModel.setPhoto(it.absolutePath) } }
+        uri?.let { selected ->
+            val copied = copyImageAsJpeg(context, selected)
+            if (copied != null) viewModel.setPhoto(copied.absolutePath)
+            else viewModel.setCaptureError("No pudimos abrir esa imagen. Elegí otra fotografía.")
+        }
     }
 
     ScreenColumn(contentPadding) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            PageHeader("Fotografiar comida", "La estimación siempre queda bajo tu control")
+            Column(modifier = Modifier.weight(1f)) { PageHeader("Fotografiar comida", "La estimación siempre queda bajo tu control") }
             IconButton(onClick = onBack) { Icon(Icons.Rounded.Close, "Cerrar cámara") }
-        }
-
-        if (!state.serviceConfigured) {
-            FriendlyNotice("El análisis está temporalmente fuera de servicio. Podés sacar la foto igualmente: quedará guardada y se procesará automáticamente más adelante.")
         }
 
         when {
@@ -100,7 +102,7 @@ fun MealCameraScreen(contentPadding: PaddingValues, onBack: () -> Unit, viewMode
                 Button(onClick = viewModel::startOver, modifier = Modifier.fillMaxWidth()) { Text("Fotografiar otra comida") }
             }
             state.photoPath != null -> {
-                PhotoPreview(state.photoPath!!)
+                PhotoPreview(state.photoPath!!, viewModel::setCaptureError)
                 if (state.loading) {
                     Text("Estamos identificando alimentos y nutrientes…", style = MaterialTheme.typography.titleMedium)
                     LinearProgressIndicator(Modifier.fillMaxWidth())
@@ -111,7 +113,9 @@ fun MealCameraScreen(contentPadding: PaddingValues, onBack: () -> Unit, viewMode
                     }
                 }
             }
+            !state.authInitialized -> LinearProgressIndicator(Modifier.fillMaxWidth())
             state.ownerUserId == null -> EmptyState("Iniciá sesión desde Perfil para proteger la fotografía y asociar el análisis únicamente a tu cuenta.")
+            !state.serviceConfigured -> EmptyState("El análisis de comidas no está configurado en esta versión. Tus demás registros siguen disponibles.")
             !state.consent -> ConsentCard(state.consent, viewModel::setConsent)
             permissionGranted -> {
                 CameraPreview(onCaptured = viewModel::setPhoto, onError = viewModel::setCaptureError)
@@ -126,15 +130,15 @@ fun MealCameraScreen(contentPadding: PaddingValues, onBack: () -> Unit, viewMode
                 FilledTonalButton(onClick = { gallery.launch("image/*") }, modifier = Modifier.fillMaxWidth()) { Text("Abrir galería") }
             }
         }
-        state.error?.let { FriendlyNotice(it) }
+        state.error?.let { ErrorCard(it) }
     }
 }
 
 @Composable
 private fun ConsentCard(checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
-    Card(modifier = Modifier.fillMaxWidth().clickable { onCheckedChange(!checked) }) {
+    Card(modifier = Modifier.fillMaxWidth().toggleable(checked, role = Role.Checkbox, onValueChange = onCheckedChange)) {
         Row(modifier = Modifier.padding(16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Checkbox(checked, onCheckedChange)
+            Checkbox(checked, onCheckedChange = null)
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text("Procesamiento de imagen", style = MaterialTheme.typography.titleMedium)
                 Text("Autorizo el procesamiento para identificar alimentos. La foto se guarda de forma privada con mi historial y puedo eliminarla junto con el registro.", color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -154,10 +158,11 @@ private fun FriendlyNotice(message: String) {
 }
 
 @Composable
-private fun PhotoPreview(path: String) {
+private fun PhotoPreview(path: String, onError: (String) -> Unit) {
     var bitmap by remember(path) { mutableStateOf<Bitmap?>(null) }
     LaunchedEffect(path) {
         bitmap = withContext(Dispatchers.IO) { decodeSampledBitmap(path) }
+        if (bitmap == null) onError("No pudimos mostrar esta fotografía. Elegí otra imagen.")
     }
     bitmap?.let {
         Image(
@@ -246,7 +251,10 @@ private fun MealResult(result: MealAnalysisResult, onSave: (MealAnalysisResult) 
     var showValidation by remember { mutableStateOf(false) }
     var lowConfidenceConfirmed by remember(result.id) { mutableStateOf(false) }
     val inputs = listOf(calories, protein, carbs, fat, fiber, sugars, sodium)
-    val valid = inputs.all { it.toDoubleOrNull()?.let { value -> value.isFinite() && value >= 0 } == true }
+    val values = inputs.map(String::toDoubleOrNull)
+    val numericValid = values.zip(listOf(20_000.0, 5_000.0, 5_000.0, 5_000.0, 1_000.0, 5_000.0, 100_000.0)).all { (value, max) -> value != null && value.isFinite() && value in 0.0..max }
+    val foodsValid = foods.isNotEmpty() && foods.all { it.name.trim().length in 1..120 && it.estimatedPortion.trim().length in 1..120 && it.estimatedGrams > 0 }
+    val valid = numericValid && foodsValid
     val saved = result.status in setOf("completed", "corrected")
     val needsConfirmation = result.confidence < 0.7
 
@@ -261,25 +269,29 @@ private fun MealResult(result: MealAnalysisResult, onSave: (MealAnalysisResult) 
             OutlinedTextField(
                 food.name,
                 { value -> foods = foods.toMutableList().also { it[index] = food.copy(name = value) } },
-                label = { Text("Alimento") }, modifier = Modifier.fillMaxWidth(),
+                label = { Text("Alimento") }, modifier = Modifier.fillMaxWidth(), enabled = !saved,
+                isError = showValidation && food.name.trim().length !in 1..120,
+                supportingText = { if (showValidation && food.name.trim().length !in 1..120) Text("Ingresá un nombre de hasta 120 caracteres") },
             )
             OutlinedTextField(
                 food.estimatedPortion,
                 { value -> foods = foods.toMutableList().also { it[index] = food.copy(estimatedPortion = value) } },
-                label = { Text("Porción estimada") }, modifier = Modifier.fillMaxWidth(),
+                label = { Text("Porción estimada") }, modifier = Modifier.fillMaxWidth(), enabled = !saved,
+                isError = showValidation && food.estimatedPortion.trim().length !in 1..120,
+                supportingText = { if (showValidation && food.estimatedPortion.trim().length !in 1..120) Text("Ingresá una porción válida") },
             )
             if (food.alternatives.isNotEmpty()) {
                 Text("Alternativas: ${food.alternatives.joinToString()}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
-        NutritionField("Calorías", calories, { calories = it })
-        NutritionField("Proteínas (g)", protein, { protein = it })
-        NutritionField("Carbohidratos (g)", carbs, { carbs = it })
-        NutritionField("Grasas (g)", fat, { fat = it })
-        NutritionField("Fibra (g)", fiber, { fiber = it })
-        NutritionField("Azúcares (g)", sugars, { sugars = it })
-        NutritionField("Sodio (mg)", sodium, { sodium = it })
-        if (showValidation && !valid) Text("Revisá los valores: deben ser números iguales o mayores que cero.", color = MaterialTheme.colorScheme.error)
+        NutritionField("Calorías", calories, { calories = it }, !saved)
+        NutritionField("Proteínas (g)", protein, { protein = it }, !saved)
+        NutritionField("Carbohidratos (g)", carbs, { carbs = it }, !saved)
+        NutritionField("Grasas (g)", fat, { fat = it }, !saved)
+        NutritionField("Fibra (g)", fiber, { fiber = it }, !saved)
+        NutritionField("Azúcares (g)", sugars, { sugars = it }, !saved)
+        NutritionField("Sodio (mg)", sodium, { sodium = it }, !saved)
+        if (showValidation && !valid) Text("Revisá alimentos, porciones y valores nutricionales antes de guardar.", color = MaterialTheme.colorScheme.error)
         if (needsConfirmation && !saved) {
             Card(modifier = Modifier.fillMaxWidth()) {
                 Row(modifier = Modifier.fillMaxWidth().clickable { lowConfidenceConfirmed = !lowConfidenceConfirmed }.padding(12.dp)) {
@@ -294,8 +306,8 @@ private fun MealResult(result: MealAnalysisResult, onSave: (MealAnalysisResult) 
                 onClick = {
                     showValidation = true
                     if (valid && (!needsConfirmation || lowConfidenceConfirmed)) {
-                        val values = inputs.map { it.toDouble() }
-                        onSave(result.copy(foods = foods, nutrition = result.nutrition.copy(calories = values[0], proteinG = values[1], carbsG = values[2], fatG = values[3], fiberG = values[4], sugarsG = values[5], sodiumMg = values[6])))
+                        val parsed = inputs.map { it.toDouble() }
+                        onSave(result.copy(foods = foods.map { it.copy(name = it.name.trim(), estimatedPortion = it.estimatedPortion.trim()) }, nutrition = result.nutrition.copy(calories = parsed[0], proteinG = parsed[1], carbsG = parsed[2], fatG = parsed[3], fiberG = parsed[4], sugarsG = parsed[5], sodiumMg = parsed[6])))
                     }
                 },
                 enabled = !loading && (!needsConfirmation || lowConfidenceConfirmed),
@@ -308,13 +320,14 @@ private fun MealResult(result: MealAnalysisResult, onSave: (MealAnalysisResult) 
 }
 
 @Composable
-private fun NutritionField(label: String, value: String, onValueChange: (String) -> Unit) {
+private fun NutritionField(label: String, value: String, onValueChange: (String) -> Unit, enabled: Boolean) {
     OutlinedTextField(
         value,
         onValueChange,
         label = { Text(label) },
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
         singleLine = true,
+        enabled = enabled,
         modifier = Modifier.fillMaxWidth(),
     )
 }

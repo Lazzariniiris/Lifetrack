@@ -59,6 +59,7 @@ class AppViewModel @Inject constructor(
 }
 
 data class HomeUiState(
+    val initialized: Boolean = false,
     val greeting: String = "Buen día",
     val progress: Float = 0f,
     val completedHabits: Int = 0,
@@ -98,6 +99,7 @@ class HomeViewModel @Inject constructor(
             else -> "Tu seguimiento de hoy está al día."
         }
         HomeUiState(
+            initialized = true,
             greeting = greeting,
             progress = summary.overallProgress,
             completedHabits = summary.completedHabits,
@@ -120,6 +122,7 @@ data class HabitListItem(
 data class HabitsUiState(
     val items: List<HabitListItem> = emptyList(),
     val error: String? = null,
+    val initialized: Boolean = false,
 )
 
 @HiltViewModel
@@ -139,6 +142,7 @@ class HabitsViewModel @Inject constructor(
                 HabitListItem(habit, current, current >= habit.targetValue)
             },
             error = message,
+            initialized = true,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HabitsUiState())
 
@@ -157,6 +161,18 @@ class HabitsViewModel @Inject constructor(
         }
     }
 
+    fun addProgress(item: HabitListItem, value: Int) = viewModelScope.launch {
+        val remaining = (item.habit.targetValue - item.currentValue).coerceAtLeast(0)
+        if (value !in 1..remaining) {
+            error.value = "Ingresá un progreso entre 1 y $remaining."
+            return@launch
+        }
+        when (val result = useCases.logProgress(item.habit, value)) {
+            is AppResult.Error -> error.value = result.message
+            is AppResult.Success -> error.value = null
+        }
+    }
+
     fun archive(id: String) = viewModelScope.launch { useCases.archiveHabit(id) }
     fun clearError() { error.value = null }
 }
@@ -166,6 +182,7 @@ data class WaterUiState(
     val consumedMl: Int = 0,
     val preferences: UserPreferences = UserPreferences(),
     val error: String? = null,
+    val initialized: Boolean = false,
 )
 
 @HiltViewModel
@@ -185,6 +202,7 @@ class WaterViewModel @Inject constructor(
             consumedMl = entries.filter { it.loggedAt.toLocalDate() == LocalDate.now() }.sumOf { it.amountMl },
             preferences = preferences,
             error = message,
+            initialized = true,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), WaterUiState())
 
@@ -219,6 +237,7 @@ class WaterViewModel @Inject constructor(
 data class SleepUiState(
     val entries: List<com.lifetrack.app.domain.model.SleepEntry> = emptyList(),
     val error: String? = null,
+    val initialized: Boolean = false,
 )
 
 @HiltViewModel
@@ -227,7 +246,7 @@ class SleepViewModel @Inject constructor(
 ) : ViewModel() {
     private val error = MutableStateFlow<String?>(null)
     val uiState: StateFlow<SleepUiState> = combine(useCases.observeEntries(), error) { entries, message ->
-        SleepUiState(entries, message)
+        SleepUiState(entries = entries, error = message, initialized = true)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SleepUiState())
 
     fun add(bedtime: Long?, wakeTime: Long?, quality: Int, notes: String) = viewModelScope.launch {
@@ -246,6 +265,7 @@ class SleepViewModel @Inject constructor(
 }
 
 data class StatisticsUiState(
+    val initialized: Boolean = false,
     val weeklyWaterAverage: Int = 0,
     val weeklySleepAverage: Long = 0,
     val habitCompletion: Float = 0f,
@@ -271,7 +291,7 @@ class StatisticsViewModel @Inject constructor(
     ) { habits, logs, water, sleep, preferences ->
         val days = (0..6).map { LocalDate.now().minusDays(it.toLong()) }
         val waterByDay = days.map { day -> water.filter { it.loggedAt.toLocalDate() == day }.sumOf { it.amountMl } }
-        val sleepByDay = days.map { day -> sleep.filter { it.wakeTime.toLocalDate() == day }.map { it.durationMinutes } }
+        val sleepByDay = days.map { day -> sleep.filter { it.wakeTime.toLocalDate() == day }.sumOf { it.durationMinutes } }
         val possible = habits.size * days.size
         val completed = days.sumOf { day ->
             habits.count { habit -> logs.filter { it.habitId == habit.id && it.loggedAt.toLocalDate() == day }.sumOf { it.value } >= habit.targetValue }
@@ -285,12 +305,13 @@ class StatisticsViewModel @Inject constructor(
             }.toFloat() / habits.size
         }
         StatisticsUiState(
+            initialized = true,
             weeklyWaterAverage = waterByDay.average().toInt(),
-            weeklySleepAverage = sleepByDay.flatten().average().takeIf { !it.isNaN() }?.toLong() ?: 0,
+            weeklySleepAverage = sleepByDay.filter { it > 0 }.average().takeIf { !it.isNaN() }?.toLong() ?: 0,
             habitCompletion = if (possible == 0) 0f else completed.toFloat() / possible,
             daysWithData = recordedDays,
             dailyWater = waterByDay,
-            dailySleep = sleepByDay.map { values -> values.average().takeIf { !it.isNaN() }?.toLong() ?: 0L },
+            dailySleep = sleepByDay,
             dailyHabitCompletion = habitByDay,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), StatisticsUiState())
@@ -298,6 +319,7 @@ class StatisticsViewModel @Inject constructor(
 
 data class CalendarUiState(
     val activityByDate: Map<LocalDate, Int> = emptyMap(),
+    val initialized: Boolean = false,
 )
 
 @HiltViewModel
@@ -315,6 +337,6 @@ class CalendarViewModel @Inject constructor(
         logs.forEach { activity[it.loggedAt.toLocalDate()] = (activity[it.loggedAt.toLocalDate()] ?: 0) + 1 }
         water.forEach { activity[it.loggedAt.toLocalDate()] = (activity[it.loggedAt.toLocalDate()] ?: 0) + 1 }
         sleep.forEach { activity[it.wakeTime.toLocalDate()] = (activity[it.wakeTime.toLocalDate()] ?: 0) + 1 }
-        CalendarUiState(activity)
+        CalendarUiState(activity, initialized = true)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), CalendarUiState())
 }

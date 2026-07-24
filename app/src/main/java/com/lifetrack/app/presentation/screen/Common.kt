@@ -1,11 +1,12 @@
 package com.lifetrack.app.presentation.screen
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
@@ -26,6 +27,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.isTraversalGroup
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.semantics
@@ -34,16 +36,23 @@ import androidx.compose.ui.unit.dp
 
 @Composable
 fun ScreenColumn(contentPadding: PaddingValues, content: @Composable ColumnScope.() -> Unit) {
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxSize()
-            .padding(contentPadding)
-            .padding(horizontal = 16.dp, vertical = 16.dp)
-            .widthIn(max = 720.dp)
-            .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(20.dp),
-        content = content,
-    )
+            .padding(contentPadding),
+        contentAlignment = Alignment.TopCenter,
+    ) {
+        Column(
+            modifier = Modifier
+                .widthIn(max = 720.dp)
+                .fillMaxSize()
+                .padding(horizontal = 16.dp, vertical = 16.dp)
+                .verticalScroll(rememberScrollState())
+                .semantics { isTraversalGroup = true },
+            verticalArrangement = Arrangement.spacedBy(20.dp),
+            content = content,
+        )
+    }
 }
 
 @Composable
@@ -68,23 +77,40 @@ fun SectionHeader(title: String, action: (@Composable () -> Unit)? = null) {
 
 @Composable
 fun ErrorCard(message: String) {
-    Card(
-        modifier = Modifier.fillMaxWidth().semantics { liveRegion = LiveRegionMode.Polite },
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
-    ) {
-        Text(text = message, modifier = Modifier.padding(16.dp), color = MaterialTheme.colorScheme.onErrorContainer)
-    }
+    StatusCard(
+        message = message,
+        modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+        containerColor = MaterialTheme.colorScheme.errorContainer,
+        contentColor = MaterialTheme.colorScheme.onErrorContainer,
+    )
 }
 
 @Composable
 fun EmptyState(message: String) {
+    StatusCard(
+        message = message,
+        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+    )
+}
+
+@Composable
+fun StatusCard(
+    message: String,
+    modifier: Modifier = Modifier,
+    title: String? = null,
+    icon: ImageVector = Icons.Rounded.Info,
+    containerColor: Color = MaterialTheme.colorScheme.surfaceVariant,
+    contentColor: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
+        modifier = modifier.fillMaxWidth().semantics(mergeDescendants = true) {},
+        colors = CardDefaults.cardColors(containerColor = containerColor),
     ) {
         Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Icon(Icons.Rounded.Info, contentDescription = null, tint = MaterialTheme.colorScheme.onSecondaryContainer)
-            Text(message, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSecondaryContainer)
+            Icon(icon, contentDescription = null, tint = contentColor)
+            title?.let { Text(it, style = MaterialTheme.typography.titleMedium, color = contentColor) }
+            Text(message, style = MaterialTheme.typography.bodyLarge, color = contentColor)
         }
     }
 }
@@ -92,7 +118,7 @@ fun EmptyState(message: String) {
 @Composable
 fun ProgressRing(progress: Float, label: String, modifier: Modifier = Modifier, color: Color = MaterialTheme.colorScheme.primary) {
     androidx.compose.foundation.layout.Box(
-        modifier = modifier.size(92.dp).semantics {
+        modifier = modifier.size(92.dp).semantics(mergeDescendants = true) {
             progressBarRangeInfo = ProgressBarRangeInfo(progress.coerceIn(0f, 1f), 0f..1f)
         },
         contentAlignment = Alignment.Center,
@@ -121,7 +147,7 @@ fun HealthMetricCard(
 ) {
     Card(
         onClick = onClick,
-        modifier = modifier,
+        modifier = modifier.semantics(mergeDescendants = true) {},
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f)),
     ) {

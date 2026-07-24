@@ -7,6 +7,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
@@ -15,6 +18,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -41,6 +45,7 @@ import com.lifetrack.app.presentation.viewmodel.SleepViewModel
 fun SleepScreen(contentPadding: PaddingValues, viewModel: SleepViewModel = hiltViewModel()) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var showDialog by rememberSaveableBool(false)
+    var entryToDelete by rememberSaveableText("")
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(20.dp, contentPadding.calculateTopPadding() + 16.dp, 20.dp, contentPadding.calculateBottomPadding() + 16.dp),
@@ -48,7 +53,7 @@ fun SleepScreen(contentPadding: PaddingValues, viewModel: SleepViewModel = hiltV
     ) {
         item {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     PageHeader("Sueño", "Conocé tu ritmo de descanso")
                 }
                 Button(onClick = { showDialog = true }) { Text("Registrar") }
@@ -63,7 +68,9 @@ fun SleepScreen(contentPadding: PaddingValues, viewModel: SleepViewModel = hiltV
             }
         }
         state.error?.let { message -> item { ErrorCard(message) } }
-        if (state.entries.isEmpty()) {
+        if (!state.initialized) {
+            item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
+        } else if (state.entries.isEmpty()) {
             item { EmptyState("Todavía no hay sesiones de sueño registradas.") }
         } else {
             items(state.entries, key = { it.id }) { entry ->
@@ -78,7 +85,7 @@ fun SleepScreen(contentPadding: PaddingValues, viewModel: SleepViewModel = hiltV
                             Text("Calidad percibida: ${entry.quality}/5", color = MaterialTheme.colorScheme.primary)
                             entry.notes?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
                         }
-                        TextButton(onClick = { viewModel.delete(entry.id) }) { Text("Eliminar") }
+                        TextButton(onClick = { entryToDelete = entry.id }) { Text("Eliminar") }
                     }
                 }
             }
@@ -91,6 +98,15 @@ fun SleepScreen(contentPadding: PaddingValues, viewModel: SleepViewModel = hiltV
                 viewModel.add(parseDateTime(bedtime), parseDateTime(wakeTime), quality, notes)
                 showDialog = false
             },
+        )
+    }
+    if (entryToDelete.isNotEmpty()) {
+        AlertDialog(
+            onDismissRequest = { entryToDelete = "" },
+            title = { Text("Eliminar sesión de sueño") },
+            text = { Text("La sesión se quitará del historial y de tus estadísticas.") },
+            confirmButton = { Button(onClick = { viewModel.delete(entryToDelete); entryToDelete = "" }) { Text("Eliminar") } },
+            dismissButton = { TextButton(onClick = { entryToDelete = "" }) { Text("Cancelar") } },
         )
     }
 }
@@ -106,7 +122,7 @@ private fun SleepDialog(onDismiss: () -> Unit, onSave: (String, String, Int, Str
         onDismissRequest = onDismiss,
         title = { Text("Registrar sueño") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(modifier = Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Usá el formato dd/MM/aaaa HH:mm", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 OutlinedTextField(bedtime, { bedtime = it }, label = { Text("Acostarse") }, singleLine = true)
                 OutlinedTextField(wakeTime, { wakeTime = it }, label = { Text("Levantarse") }, singleLine = true)
@@ -118,7 +134,7 @@ private fun SleepDialog(onDismiss: () -> Unit, onSave: (String, String, Int, Str
             val parsedBedtime = parseDateTime(bedtime)
             val parsedWake = parseDateTime(wakeTime)
             val parsedQuality = quality.toIntOrNull()
-            val valid = parsedBedtime != null && parsedWake != null && parsedWake > parsedBedtime && parsedQuality in 1..5
+            val valid = parsedBedtime != null && parsedWake != null && parsedWake > parsedBedtime && parsedWake - parsedBedtime <= 24 * 60 * 60 * 1_000L && parsedQuality in 1..5
             Column(horizontalAlignment = androidx.compose.ui.Alignment.End) {
                 if (attempted && !valid) Text("Revisá las fechas y la calidad", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                 Button(onClick = { attempted = true; if (valid) onSave(bedtime, wakeTime, parsedQuality!!, notes) }) { Text("Guardar") }

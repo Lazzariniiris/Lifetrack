@@ -7,6 +7,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
@@ -46,6 +49,7 @@ fun HabitsScreen(contentPadding: PaddingValues, viewModel: HabitsViewModel = hil
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var showCreateDialog by rememberSaveableState(false)
     var habitToArchive by rememberSaveableState("")
+    var habitToProgress by rememberSaveableState("")
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(
@@ -58,7 +62,7 @@ fun HabitsScreen(contentPadding: PaddingValues, viewModel: HabitsViewModel = hil
     ) {
         item {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                PageHeader("Hábitos", "Pequeñas acciones, progreso constante")
+                Column(modifier = Modifier.weight(1f)) { PageHeader("Hábitos", "Pequeñas acciones, progreso constante") }
                 FilledTonalButton(onClick = { showCreateDialog = true }) {
                     Icon(Icons.Default.Add, contentDescription = null)
                     Text("  Nuevo")
@@ -68,11 +72,20 @@ fun HabitsScreen(contentPadding: PaddingValues, viewModel: HabitsViewModel = hil
         state.error?.let { message ->
             item { ErrorCard(message) }
         }
-        if (state.items.isEmpty()) {
+        if (!state.initialized) {
+            item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
+        } else if (state.items.isEmpty()) {
             item { EmptyState("Todavía no tenés hábitos. Creá uno para empezar tu seguimiento.") }
         } else {
             items(state.items, key = { it.habit.id }) { item ->
-                HabitCard(item, onComplete = { viewModel.complete(item) }, onArchive = { habitToArchive = item.habit.id })
+                HabitCard(
+                    item,
+                    onComplete = {
+                        if (item.habit.targetType == HabitTargetType.YES_NO) viewModel.complete(item)
+                        else habitToProgress = item.habit.id
+                    },
+                    onArchive = { habitToArchive = item.habit.id },
+                )
             }
         }
     }
@@ -93,6 +106,14 @@ fun HabitsScreen(contentPadding: PaddingValues, viewModel: HabitsViewModel = hil
             text = { Text("Dejará de aparecer en tu lista diaria. Tus registros anteriores se conservarán.") },
             confirmButton = { Button(onClick = { viewModel.archive(habitToArchive); habitToArchive = "" }) { Text("Archivar") } },
             dismissButton = { TextButton(onClick = { habitToArchive = "" }) { Text("Cancelar") } },
+        )
+    }
+    state.items.firstOrNull { it.habit.id == habitToProgress }?.let { item ->
+        ProgressDialog(
+            item = item,
+            onDismiss = { habitToProgress = "" },
+            onSave = { value -> viewModel.addProgress(item, value); habitToProgress = "" },
+            onComplete = { viewModel.complete(item); habitToProgress = "" },
         )
     }
 }
@@ -134,7 +155,7 @@ private fun HabitCard(item: HabitListItem, onComplete: () -> Unit, onArchive: ()
             )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(onClick = onComplete, enabled = !item.isComplete) {
-                    Text(if (item.isComplete) "Completado" else "Completar")
+                    Text(if (item.isComplete) "Completado" else if (item.habit.targetType == HabitTargetType.YES_NO) "Completar" else "Registrar progreso")
                 }
                 TextButton(onClick = onArchive) {
                     Icon(Icons.Rounded.Archive, contentDescription = null)
@@ -156,14 +177,14 @@ private fun CreateHabitDialog(
     var type by rememberSaveableState(HabitTargetType.YES_NO)
     var attempted by rememberSaveableState(false)
     val parsedTarget = target.toIntOrNull()
-    val validName = name.trim().isNotEmpty()
+    val validName = name.trim().length in 1..80
     val validTarget = type == HabitTargetType.YES_NO || parsedTarget in 1..10_000
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Nuevo hábito") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(name, { name = it }, label = { Text("Nombre") }, singleLine = true, isError = attempted && !validName, supportingText = { if (attempted && !validName) Text("Ingresá un nombre") })
+            Column(modifier = Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(name, { name = it }, label = { Text("Nombre") }, singleLine = true, isError = attempted && !validName, supportingText = { if (attempted && !validName) Text("Ingresá entre 1 y 80 caracteres") })
                 OutlinedTextField(description, { description = it }, label = { Text("Descripción opcional") })
                 HabitTargetType.entries.forEach { option ->
                     FilterChip(
@@ -191,6 +212,36 @@ private fun CreateHabitDialog(
                 if (validName && validTarget) onCreate(name, description, type, if (type == HabitTargetType.YES_NO) 1 else parsedTarget!!)
             }) { Text("Guardar") }
         },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } },
+    )
+}
+
+@Composable
+private fun ProgressDialog(item: HabitListItem, onDismiss: () -> Unit, onSave: (Int) -> Unit, onComplete: () -> Unit) {
+    val remaining = (item.habit.targetValue - item.currentValue).coerceAtLeast(1)
+    var value by rememberSaveableState("1")
+    var attempted by rememberSaveableState(false)
+    val parsed = value.toIntOrNull()
+    val valid = parsed != null && parsed in 1..remaining
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Registrar progreso") },
+        text = {
+            Column(modifier = Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Faltan $remaining para completar ${item.habit.name}.")
+                OutlinedTextField(
+                    value = value,
+                    onValueChange = { value = it.filter(Char::isDigit) },
+                    label = { Text("Progreso a agregar") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    isError = attempted && !valid,
+                    supportingText = { if (attempted && !valid) Text("Elegí un valor entre 1 y $remaining") },
+                    singleLine = true,
+                )
+                TextButton(onClick = onComplete) { Text("Completar los $remaining restantes") }
+            }
+        },
+        confirmButton = { Button(onClick = { attempted = true; if (valid) onSave(parsed!!) }) { Text("Agregar") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } },
     )
 }

@@ -19,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
+import com.lifetrack.app.BuildConfig
 import com.lifetrack.app.R
 
 @Composable
@@ -41,7 +42,7 @@ fun AboutScreen(contentPadding: PaddingValues) {
         Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().padding(20.dp)) {
                 Text("LifeTrack", style = MaterialTheme.typography.titleLarge)
-                Text("Versión 1.0.0", style = MaterialTheme.typography.bodyMedium)
+                Text("Versión ${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.bodyMedium)
                 Text("Seguimiento personal de hábitos, hidratación, sueño y alimentación.", style = MaterialTheme.typography.bodyLarge)
                 Text("LifeTrack no reemplaza el consejo de profesionales de la salud.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
