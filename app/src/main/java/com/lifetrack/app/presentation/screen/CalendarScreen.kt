@@ -3,18 +3,21 @@ package com.lifetrack.app.presentation.screen
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.material3.Button
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.ChevronLeft
+import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -23,41 +26,52 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.lifetrack.app.presentation.viewmodel.CalendarViewModel
-import java.time.LocalDate
 import java.time.DayOfWeek
+import java.time.LocalDate
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
 
 @Composable
-fun CalendarScreen(contentPadding: PaddingValues, onBack: () -> Unit, viewModel: CalendarViewModel = hiltViewModel()) {
+fun CalendarScreen(contentPadding: PaddingValues, viewModel: CalendarViewModel = hiltViewModel()) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    var month by rememberMonth(YearMonth.now())
-    var selectedDate by rememberDate(LocalDate.now())
+    var month by remember { mutableStateOf(YearMonth.now()) }
+    var selectedDate by remember { mutableStateOf(LocalDate.now()) }
+    val locale = Locale("es", "AR")
     ScreenColumn(contentPadding) {
-        Text("Calendario", style = MaterialTheme.typography.headlineMedium)
-        Text("Tu actividad diaria, de un vistazo", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        PageHeader("Calendario", "Frecuencia y constancia de tus registros")
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            TextButton(onClick = { month = month.minusMonths(1) }) { Text("Anterior") }
-            Text(month.format(DateTimeFormatter.ofPattern("MMM yyyy", Locale.getDefault())), style = MaterialTheme.typography.titleLarge)
-            Button(onClick = { month = month.plusMonths(1) }) { Text("Siguiente") }
+            IconButton(onClick = { month = month.minusMonths(1) }) { Icon(Icons.Rounded.ChevronLeft, "Mes anterior") }
+            Text(month.format(DateTimeFormatter.ofPattern("MMMM yyyy", locale)).replaceFirstChar(Char::titlecase), style = MaterialTheme.typography.titleLarge)
+            IconButton(onClick = { month = month.plusMonths(1) }) { Icon(Icons.Rounded.ChevronRight, "Mes siguiente") }
         }
-        TextButton(onClick = onBack) { Text("Volver al resumen") }
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround) {
-            (1..7).forEach { day -> Text(DayOfWeek.of(day).getDisplayName(TextStyle.NARROW, Locale.getDefault())) }
+        Row(modifier = Modifier.fillMaxWidth()) {
+            (1..7).forEach { day ->
+                Text(
+                    DayOfWeek.of(day).getDisplayName(TextStyle.NARROW, locale),
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.labelMedium,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                )
+            }
         }
-        CalendarGrid(month, selectedDate, state.activityByDate, onSelect = { selectedDate = it })
+        CalendarGrid(month, selectedDate, state.activityByDate) { selectedDate = it }
+        HeatmapLegend()
         val activities = state.activityByDate[selectedDate] ?: 0
-        Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
+        Card(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(selectedDate.format(DateTimeFormatter.ofPattern("dd MMMM yyyy", Locale.getDefault())), style = MaterialTheme.typography.titleMedium)
-                Text(if (activities == 0) "Sin registros para este dia." else "$activities registros de seguimiento.")
-                Text("El numero acompana el color para que el estado no dependa solo de la tonalidad.", style = MaterialTheme.typography.bodySmall)
+                Text(selectedDate.format(DateTimeFormatter.ofPattern("d 'de' MMMM", locale)), style = MaterialTheme.typography.titleMedium)
+                Text(if (activities == 0) "Sin registros para este día" else "$activities registros de seguimiento")
             }
         }
     }
@@ -69,26 +83,34 @@ private fun CalendarGrid(month: YearMonth, selectedDate: LocalDate, activityByDa
     val days = buildList<LocalDate?> {
         repeat(firstOffset) { add(null) }
         repeat(month.lengthOfMonth()) { add(month.atDay(it + 1)) }
+        while (size % 7 != 0) add(null)
     }
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         days.chunked(7).forEach { week ->
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 week.forEach { date ->
-                    if (date == null) {
-                        Text(" ", modifier = Modifier.size(40.dp))
-                    } else {
+                    if (date == null) Box(Modifier.weight(1f).aspectRatio(1f))
+                    else {
                         val count = activityByDate[date] ?: 0
-                        val selected = date == selectedDate
-                        Text(
-                            text = "${date.dayOfMonth}\n$count",
-                            modifier = Modifier
-                                .size(40.dp)
-                                .clip(MaterialTheme.shapes.small)
-                                .background(if (selected) MaterialTheme.colorScheme.primaryContainer else if (count > 0) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceVariant)
-                                .clickable { onSelect(date) }
-                                .padding(4.dp),
-                            style = MaterialTheme.typography.labelSmall,
-                        )
+                        val isSelected = date == selectedDate
+                        val color = when {
+                            isSelected -> MaterialTheme.colorScheme.primary
+                            count >= 5 -> MaterialTheme.colorScheme.secondary
+                            count >= 3 -> MaterialTheme.colorScheme.secondaryContainer
+                            count > 0 -> MaterialTheme.colorScheme.primaryContainer
+                            else -> MaterialTheme.colorScheme.surfaceVariant
+                        }
+                        Box(
+                            modifier = Modifier.weight(1f).aspectRatio(1f).clip(MaterialTheme.shapes.small).background(color)
+                                .semantics {
+                                    contentDescription = "${date.dayOfMonth} de ${date.month.getDisplayName(TextStyle.FULL, Locale("es", "AR"))}, $count registros"
+                                    selected = isSelected
+                                    role = Role.Button
+                                }.clickable { onSelect(date) },
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(date.dayOfMonth.toString(), color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface)
+                        }
                     }
                 }
             }
@@ -97,7 +119,15 @@ private fun CalendarGrid(month: YearMonth, selectedDate: LocalDate, activityByDa
 }
 
 @Composable
-private fun rememberMonth(initial: YearMonth) = remember { mutableStateOf(initial) }
-
-@Composable
-private fun rememberDate(initial: LocalDate) = remember { mutableStateOf(initial) }
+private fun HeatmapLegend() {
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+        Text("Menos", style = MaterialTheme.typography.labelMedium)
+        listOf(
+            MaterialTheme.colorScheme.surfaceVariant,
+            MaterialTheme.colorScheme.primaryContainer,
+            MaterialTheme.colorScheme.secondaryContainer,
+            MaterialTheme.colorScheme.secondary,
+        ).forEach { color -> Box(Modifier.padding(start = 4.dp).clip(MaterialTheme.shapes.extraSmall).background(color).padding(7.dp)) }
+        Text("Más", style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(start = 4.dp))
+    }
+}

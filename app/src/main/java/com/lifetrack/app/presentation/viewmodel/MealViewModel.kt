@@ -16,25 +16,48 @@ import kotlinx.coroutines.flow.update
 import javax.inject.Inject
 import java.io.File
 
-data class MealUiState(val photoPath: String? = null, val consent: Boolean = false, val loading: Boolean = false, val result: MealAnalysisResult? = null, val error: String? = null, val queuedId: String? = null, val history: List<MealAnalysisResult> = emptyList())
+data class MealUiState(
+    val photoPath: String? = null,
+    val consent: Boolean = false,
+    val loading: Boolean = false,
+    val result: MealAnalysisResult? = null,
+    val error: String? = null,
+    val notice: String? = null,
+    val queuedId: String? = null,
+    val history: List<MealAnalysisResult> = emptyList(),
+    val serviceConfigured: Boolean = true,
+)
 @HiltViewModel class MealViewModel @Inject constructor(private val repository: MealRepository, private val queue: MealQueueRepository, private val scheduler: MealRetryScheduler) : ViewModel() {
-    private val mutableState = MutableStateFlow(MealUiState()); val state: StateFlow<MealUiState> = mutableState.asStateFlow()
+    private val mutableState = MutableStateFlow(MealUiState(serviceConfigured = repository.configured)); val state: StateFlow<MealUiState> = mutableState.asStateFlow()
     init {
         viewModelScope.launch { queue.observeReady().collect { ready -> ready.firstOrNull()?.let { item -> if (mutableState.value.result == null) mutableState.update { it.copy(result = item.result, queuedId = item.id, error = null) } } } }
         viewModelScope.launch { queue.observeHistory().collect { history -> mutableState.update { it.copy(history = history) } } }
         scheduler.enqueue()
     }
-    fun setPhoto(path: String) { mutableState.value = mutableState.value.copy(photoPath = path, result = null, error = null) }
+    fun setPhoto(path: String) {
+        mutableState.value.photoPath?.takeIf { it != path }?.let { File(it).delete() }
+        mutableState.value = mutableState.value.copy(photoPath = path, result = null, error = null, notice = null)
+    }
     fun setConsent(value: Boolean) { mutableState.value = mutableState.value.copy(consent = value) }
     fun submitPhoto(path: String) { setPhoto(path); analyze() }
     fun analyze() = viewModelScope.launch {
         val path = mutableState.value.photoPath ?: return@launch
         if (!mutableState.value.consent) { mutableState.value = mutableState.value.copy(error = "Confirma el consentimiento antes de enviar la foto."); return@launch }
-        mutableState.value = mutableState.value.copy(loading = true, error = null)
+        mutableState.value = mutableState.value.copy(loading = true, error = null, notice = null)
         when (val response = repository.analyze(path)) {
             is AppResult.Error -> {
-                val queuedId = queue.enqueue(path); scheduler.enqueue()
-                mutableState.value = mutableState.value.copy(loading = false, photoPath = null, queuedId = queuedId, error = "Guardamos la foto de forma segura y la analizaremos automaticamente cuando vuelva la conexion.")
+                if (response.retryable || !repository.configured) {
+                    val queuedId = queue.enqueue(path)
+                    scheduler.enqueue()
+                    mutableState.value = mutableState.value.copy(
+                        loading = false,
+                        photoPath = null,
+                        queuedId = queuedId,
+                        notice = "Tu foto quedó guardada en este dispositivo. La analizaremos automáticamente cuando el servicio vuelva a estar disponible.",
+                    )
+                } else {
+                    mutableState.value = mutableState.value.copy(loading = false, error = response.message)
+                }
             }
             is AppResult.Success -> mutableState.value = mutableState.value.copy(loading = false, result = response.value, photoPath = null)
         }
@@ -46,7 +69,7 @@ data class MealUiState(val photoPath: String? = null, val consent: Boolean = fal
                 return@launch
             }
         }
-        mutableState.value = mutableState.value.copy(loading = true, error = null)
+        mutableState.value = mutableState.value.copy(loading = true, error = null, notice = null)
         when (val response = repository.save(result)) {
             is AppResult.Error -> mutableState.value = mutableState.value.copy(loading = false, error = response.message)
             is AppResult.Success -> {
@@ -57,6 +80,10 @@ data class MealUiState(val photoPath: String? = null, val consent: Boolean = fal
         }
     }
     fun setCaptureError(message: String) { mutableState.value = mutableState.value.copy(error = message) }
+    fun startOver() {
+        mutableState.value.photoPath?.let { File(it).delete() }
+        mutableState.value = mutableState.value.copy(photoPath = null, result = null, error = null, notice = null, queuedId = null)
+    }
     override fun onCleared() { mutableState.value.photoPath?.let { File(it).delete() }; super.onCleared() }
 }
 

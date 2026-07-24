@@ -61,6 +61,8 @@ interface MealDao {
     suspend fun insertPending(value: PendingMealAnalysisEntity)
     @Query("UPDATE pending_meal_analyses SET status = 'READY', resultJson = :result, updatedAt = :updatedAt WHERE id = :id")
     suspend fun markReady(id: String, result: String, updatedAt: Long)
+    @Query("UPDATE pending_meal_analyses SET status = 'FAILED', updatedAt = :updatedAt WHERE id = :id")
+    suspend fun markFailed(id: String, updatedAt: Long)
     @Query("DELETE FROM pending_meal_analyses WHERE id = :id")
     suspend fun deletePending(id: String)
     @Query("SELECT * FROM meal_history ORDER BY createdAt DESC")

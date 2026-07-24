@@ -1,67 +1,126 @@
 package com.lifetrack.app.presentation.navigation
 
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Assessment
-import androidx.compose.material.icons.filled.Bedtime
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.WaterDrop
-import androidx.compose.material3.Icon
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItemDefaults
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.foundation.Image
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.ui.Alignment
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.BarChart
+import androidx.compose.material.icons.rounded.Bedtime
+import androidx.compose.material.icons.rounded.CameraAlt
+import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.Home
+import androidx.compose.material.icons.rounded.Person
+import androidx.compose.material.icons.rounded.Restaurant
+import androidx.compose.material.icons.rounded.WaterDrop
+import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import com.lifetrack.app.presentation.screen.CalendarScreen
 import com.lifetrack.app.presentation.screen.AboutScreen
-import com.lifetrack.app.presentation.screen.AccountScreen
-import com.lifetrack.app.presentation.screen.MealCameraScreen
+import com.lifetrack.app.presentation.screen.CalendarScreen
 import com.lifetrack.app.presentation.screen.HabitsScreen
 import com.lifetrack.app.presentation.screen.HomeScreen
+import com.lifetrack.app.presentation.screen.MealCameraScreen
+import com.lifetrack.app.presentation.screen.MealsScreen
+import com.lifetrack.app.presentation.screen.ProfileScreen
+import com.lifetrack.app.presentation.screen.SettingsScreen
 import com.lifetrack.app.presentation.screen.SleepScreen
 import com.lifetrack.app.presentation.screen.StatisticsScreen
 import com.lifetrack.app.presentation.screen.WaterScreen
 import com.lifetrack.app.presentation.viewmodel.AppViewModel
 
-private data class NavigationItem(val route: String, val label: String, val icon: @Composable () -> Unit)
+private data class Destination(val route: String, val label: String, val icon: ImageVector)
 
-private val navigationItems = listOf(
-    NavigationItem("home", "Inicio") { Icon(Icons.Default.Home, contentDescription = null) },
-    NavigationItem("habits", "Habitos") { Icon(Icons.Default.CheckCircle, contentDescription = null) },
-    NavigationItem("water", "Agua") { Icon(Icons.Default.WaterDrop, contentDescription = null) },
-    NavigationItem("sleep", "Sueno") { Icon(Icons.Default.Bedtime, contentDescription = null) },
-    NavigationItem("statistics", "Resumen") { Icon(Icons.Default.Assessment, contentDescription = null) },
+private val mainDestinations = listOf(
+    Destination("home", "Inicio", Icons.Rounded.Home),
+    Destination("habits", "Hábitos", Icons.Rounded.CheckCircle),
+    Destination("statistics", "Estadísticas", Icons.Rounded.BarChart),
+    Destination("profile", "Perfil", Icons.Rounded.Person),
 )
 
+private val routeTitles = mapOf(
+    "habits" to "Hábitos",
+    "statistics" to "Estadísticas",
+    "profile" to "Perfil",
+    "water" to "Agua",
+    "sleep" to "Sueño",
+    "meals" to "Comidas",
+    "meal-camera" to "Cámara",
+    "calendar" to "Calendario",
+    "settings" to "Configuración",
+    "about" to "Acerca de",
+)
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LifeTrackNavigation(appViewModel: AppViewModel) {
     val navController = rememberNavController()
-    val backStackEntry = navController.currentBackStackEntryAsState().value
-    val route = backStackEntry?.destination?.route
+    val route = navController.currentBackStackEntryAsState().value?.destination?.route ?: "home"
+    val isMainRoute = mainDestinations.any { it.route == route }
+    var showRegisterSheet by remember { mutableStateOf(false) }
+
     Scaffold(
-        topBar = { LifeTrackTopBar(onAccount = { navController.navigate("account") }) },
+        containerColor = MaterialTheme.colorScheme.background,
+        topBar = {
+            if (!isMainRoute && route != "meal-camera") {
+                CenterAlignedTopAppBar(
+                    title = { Text(routeTitles[route].orEmpty()) },
+                    navigationIcon = {
+                        if (!isMainRoute) {
+                            IconButton(onClick = { navController.popBackStack() }) {
+                                Icon(Icons.Rounded.ArrowBack, contentDescription = "Volver")
+                            }
+                        }
+                    },
+                    colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = MaterialTheme.colorScheme.background),
+                )
+            }
+        },
+        floatingActionButton = {
+            AnimatedVisibility(visible = isMainRoute, enter = fadeIn(), exit = fadeOut()) {
+                FloatingActionButton(onClick = { showRegisterSheet = true }) {
+                    Icon(Icons.Rounded.Add, contentDescription = "Registrar")
+                }
+            }
+        },
         bottomBar = {
-            if (route !in setOf("calendar", "about", "account", "meal")) {
-                NavigationBar(containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surface) {
-                    navigationItems.forEach { item ->
+            AnimatedVisibility(visible = isMainRoute, enter = fadeIn(), exit = fadeOut()) {
+                NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
+                    mainDestinations.forEach { item ->
                         NavigationBarItem(
                             selected = route == item.route,
                             onClick = {
@@ -71,56 +130,83 @@ fun LifeTrackNavigation(appViewModel: AppViewModel) {
                                     restoreState = true
                                 }
                             },
-                            icon = item.icon,
+                            icon = { Icon(item.icon, contentDescription = null) },
                             label = { Text(item.label) },
-                            colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = androidx.compose.material3.MaterialTheme.colorScheme.onSecondaryContainer,
-                                selectedTextColor = androidx.compose.material3.MaterialTheme.colorScheme.onSurface,
-                                indicatorColor = androidx.compose.material3.MaterialTheme.colorScheme.secondaryContainer,
-                            ),
+                            colors = NavigationBarItemDefaults.colors(indicatorColor = MaterialTheme.colorScheme.primaryContainer),
                         )
                     }
                 }
             }
         },
     ) { innerPadding ->
-        NavHost(navController, startDestination = "home", modifier = Modifier) {
-            composable("home") { HomeScreen(innerPadding, onNavigate = navController::navigate) }
+        NavHost(
+            navController = navController,
+            startDestination = "home",
+            enterTransition = { fadeIn() + slideInHorizontally { it / 12 } },
+            exitTransition = { fadeOut() + slideOutHorizontally { -it / 12 } },
+            popEnterTransition = { fadeIn() + slideInHorizontally { -it / 12 } },
+            popExitTransition = { fadeOut() + slideOutHorizontally { it / 12 } },
+        ) {
+            composable("home") { HomeScreen(innerPadding, navController::navigate) }
             composable("habits") { HabitsScreen(innerPadding) }
-            composable("water") { WaterScreen(innerPadding) }
-            composable("sleep") { SleepScreen(innerPadding) }
             composable("statistics") {
-                StatisticsScreen(
+                StatisticsScreen(innerPadding, onOpenCalendar = { navController.navigate("calendar") })
+            }
+            composable("profile") {
+                ProfileScreen(
                     innerPadding,
-                    appViewModel,
-                    onOpenCalendar = { navController.navigate("calendar") },
+                    onOpenSettings = { navController.navigate("settings") },
                     onOpenAbout = { navController.navigate("about") },
                 )
             }
-            composable("calendar") { CalendarScreen(innerPadding, onBack = { navController.popBackStack() }) }
-            composable("about") { AboutScreen(innerPadding, onBack = { navController.popBackStack() }) }
-            composable("account") { AccountScreen(innerPadding, onBack = { navController.popBackStack() }) }
-            composable("meal") { MealCameraScreen(innerPadding, onBack = { navController.popBackStack() }) }
+            composable("water") { WaterScreen(innerPadding) }
+            composable("sleep") { SleepScreen(innerPadding) }
+            composable("meals") { MealsScreen(innerPadding, onOpenCamera = { navController.navigate("meal-camera") }) }
+            composable("meal-camera") { MealCameraScreen(innerPadding, onBack = { navController.popBackStack() }) }
+            composable("calendar") { CalendarScreen(innerPadding) }
+            composable("settings") { SettingsScreen(innerPadding, appViewModel) }
+            composable("about") { AboutScreen(innerPadding) }
+        }
+    }
+
+    if (showRegisterSheet) {
+        RegisterSheet(
+            onDismiss = { showRegisterSheet = false },
+            onNavigate = {
+                showRegisterSheet = false
+                navController.navigate(it)
+            },
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun RegisterSheet(onDismiss: () -> Unit, onNavigate: (String) -> Unit) {
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(modifier = Modifier.padding(bottom = 24.dp)) {
+            Text(
+                "Registrar",
+                style = MaterialTheme.typography.headlineSmall,
+                modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+            ) {
+                RegisterAction("Agua", Icons.Rounded.WaterDrop) { onNavigate("water") }
+                RegisterAction("Sueño", Icons.Rounded.Bedtime) { onNavigate("sleep") }
+                RegisterAction("Comida", Icons.Rounded.Restaurant) { onNavigate("meals") }
+                RegisterAction("Cámara", Icons.Rounded.CameraAlt) { onNavigate("meal-camera") }
+            }
         }
     }
 }
 
 @Composable
-private fun LifeTrackTopBar(onAccount: () -> Unit) {
-    Surface(tonalElevation = 2.dp, color = androidx.compose.material3.MaterialTheme.colorScheme.surface) {
-        Row(
-            modifier = Modifier.fillMaxWidth().height(64.dp).padding(horizontal = 20.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            Image(
-                painter = painterResource(com.lifetrack.app.R.drawable.lifetrack_mark),
-                contentDescription = "LifeTrack",
-                modifier = Modifier.size(38.dp),
-            )
-            Text("LifeTrack", style = androidx.compose.material3.MaterialTheme.typography.titleLarge, color = androidx.compose.material3.MaterialTheme.colorScheme.primary)
-            androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
-            androidx.compose.material3.TextButton(onClick = onAccount) { Text("Cuenta") }
-        }
+private fun RowScope.RegisterAction(label: String, icon: ImageVector, onClick: () -> Unit) {
+    Column(modifier = Modifier.weight(1f), horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {
+        FilledTonalIconButton(onClick = onClick) { Icon(icon, contentDescription = label) }
+        Text(label, style = MaterialTheme.typography.labelMedium)
     }
 }

@@ -49,8 +49,7 @@ fun SleepScreen(contentPadding: PaddingValues, viewModel: SleepViewModel = hiltV
         item {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text("Sueno", style = MaterialTheme.typography.headlineMedium)
-                    Text("Conoce tu ritmo de descanso", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    PageHeader("Sueño", "Conocé tu ritmo de descanso")
                 }
                 Button(onClick = { showDialog = true }) { Text("Registrar") }
             }
@@ -59,13 +58,13 @@ fun SleepScreen(contentPadding: PaddingValues, viewModel: SleepViewModel = hiltV
             Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
                 Row(modifier = Modifier.padding(18.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     Icon(Icons.Default.Bedtime, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                    Text("Registra tus horarios para observar tu descanso. Es seguimiento personal, no diagnostico.", color = MaterialTheme.colorScheme.onSecondaryContainer)
+                    Text("Tus registros ayudan a observar tendencias personales; no representan un diagnóstico.", color = MaterialTheme.colorScheme.onSecondaryContainer)
                 }
             }
         }
         state.error?.let { message -> item { ErrorCard(message) } }
         if (state.entries.isEmpty()) {
-            item { EmptyState("No hay sesiones de sueno registradas.") }
+            item { EmptyState("Todavía no hay sesiones de sueño registradas.") }
         } else {
             items(state.entries, key = { it.id }) { entry ->
                 Card(
@@ -76,7 +75,7 @@ fun SleepScreen(contentPadding: PaddingValues, viewModel: SleepViewModel = hiltV
                         Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
                             Text(formatDuration(entry.durationMinutes), style = MaterialTheme.typography.titleLarge)
                             Text("${formatDateTime(entry.bedtime)} a ${formatDateTime(entry.wakeTime)}", style = MaterialTheme.typography.bodySmall)
-                            Text("Calidad percibida: ${entry.quality}/5")
+                            Text("Calidad percibida: ${entry.quality}/5", color = MaterialTheme.colorScheme.primary)
                             entry.notes?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
                         }
                         TextButton(onClick = { viewModel.delete(entry.id) }) { Text("Eliminar") }
@@ -102,19 +101,29 @@ private fun SleepDialog(onDismiss: () -> Unit, onSave: (String, String, Int, Str
     var wakeTime by rememberSaveableText(defaultWakeInput())
     var quality by rememberSaveableText("3")
     var notes by rememberSaveableText("")
+    var attempted by rememberSaveableBool(false)
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Registrar sueno") },
+        title = { Text("Registrar sueño") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Formato de fecha y hora: dd/MM/aaaa HH:mm")
+                Text("Usá el formato dd/MM/aaaa HH:mm", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 OutlinedTextField(bedtime, { bedtime = it }, label = { Text("Acostarse") }, singleLine = true)
                 OutlinedTextField(wakeTime, { wakeTime = it }, label = { Text("Levantarse") }, singleLine = true)
                 OutlinedTextField(quality, { quality = it.filter(Char::isDigit) }, label = { Text("Calidad percibida (1 a 5)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true)
                 OutlinedTextField(notes, { notes = it }, label = { Text("Notas opcionales") })
             }
         },
-        confirmButton = { Button(onClick = { onSave(bedtime, wakeTime, quality.toIntOrNull() ?: 0, notes) }) { Text("Guardar") } },
+        confirmButton = {
+            val parsedBedtime = parseDateTime(bedtime)
+            val parsedWake = parseDateTime(wakeTime)
+            val parsedQuality = quality.toIntOrNull()
+            val valid = parsedBedtime != null && parsedWake != null && parsedWake > parsedBedtime && parsedQuality in 1..5
+            Column(horizontalAlignment = androidx.compose.ui.Alignment.End) {
+                if (attempted && !valid) Text("Revisá las fechas y la calidad", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                Button(onClick = { attempted = true; if (valid) onSave(bedtime, wakeTime, parsedQuality!!, notes) }) { Text("Guardar") }
+            }
+        },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } },
     )
 }

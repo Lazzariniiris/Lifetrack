@@ -40,16 +40,22 @@ import javax.inject.Singleton
         repeat(MAX_ITEMS_PER_RUN) {
             val pending = queue.nextPending() ?: return Result.success()
             when (val analysis = remote.analyze(pending.photoPath)) {
-                is AppResult.Error -> return Result.retry()
+                is AppResult.Error -> {
+                    if (analysis.retryable) return Result.retry()
+                    queue.markFailed(pending.id)
+                    File(pending.photoPath).delete()
+                }
                 is AppResult.Success -> {
                     queue.markReady(pending.id, analysis.value)
                     File(pending.photoPath).delete()
                 }
             }
         }
-        return Result.success()
+        return if (queue.nextPending() != null) Result.retry() else Result.success()
     }
-    private companion object { const val MAX_ITEMS_PER_RUN = 3 }
+    private companion object {
+        const val MAX_ITEMS_PER_RUN = 3
+    }
 }
 
 private const val WORK_NAME = "pending_meal_analysis"

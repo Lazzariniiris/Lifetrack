@@ -63,5 +63,5 @@ const val DEFAULT_QUIET_END_MINUTES = 7 * 60
 
 sealed interface AppResult<out T> {
     data class Success<T>(val value: T) : AppResult<T>
-    data class Error(val message: String) : AppResult<Nothing>
+    data class Error(val message: String, val retryable: Boolean = false) : AppResult<Nothing>
 }

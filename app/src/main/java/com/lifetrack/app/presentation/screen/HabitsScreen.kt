@@ -25,6 +25,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.rounded.Archive
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -44,6 +45,7 @@ import com.lifetrack.app.presentation.viewmodel.HabitsViewModel
 fun HabitsScreen(contentPadding: PaddingValues, viewModel: HabitsViewModel = hiltViewModel()) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var showCreateDialog by rememberSaveableState(false)
+    var habitToArchive by rememberSaveableState("")
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(
@@ -56,13 +58,10 @@ fun HabitsScreen(contentPadding: PaddingValues, viewModel: HabitsViewModel = hil
     ) {
         item {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text("Habitos", style = MaterialTheme.typography.headlineMedium)
-                    Text("Pequenas acciones, progreso constante", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
+                PageHeader("Hábitos", "Pequeñas acciones, progreso constante")
                 FilledTonalButton(onClick = { showCreateDialog = true }) {
                     Icon(Icons.Default.Add, contentDescription = null)
-                    Text("  Crear")
+                    Text("  Nuevo")
                 }
             }
         }
@@ -70,10 +69,10 @@ fun HabitsScreen(contentPadding: PaddingValues, viewModel: HabitsViewModel = hil
             item { ErrorCard(message) }
         }
         if (state.items.isEmpty()) {
-            item { EmptyState("Todavia no tenes habitos. Crea uno para comenzar tu seguimiento.") }
+            item { EmptyState("Todavía no tenés hábitos. Creá uno para empezar tu seguimiento.") }
         } else {
             items(state.items, key = { it.habit.id }) { item ->
-                HabitCard(item, onComplete = { viewModel.complete(item) }, onArchive = { viewModel.archive(item.habit.id) })
+                HabitCard(item, onComplete = { viewModel.complete(item) }, onArchive = { habitToArchive = item.habit.id })
             }
         }
     }
@@ -86,6 +85,16 @@ fun HabitsScreen(contentPadding: PaddingValues, viewModel: HabitsViewModel = hil
             },
         )
     }
+    if (habitToArchive.isNotEmpty()) {
+        AlertDialog(
+            onDismissRequest = { habitToArchive = "" },
+            icon = { Icon(Icons.Rounded.Archive, contentDescription = null) },
+            title = { Text("Archivar hábito") },
+            text = { Text("Dejará de aparecer en tu lista diaria. Tus registros anteriores se conservarán.") },
+            confirmButton = { Button(onClick = { viewModel.archive(habitToArchive); habitToArchive = "" }) { Text("Archivar") } },
+            dismissButton = { TextButton(onClick = { habitToArchive = "" }) { Text("Cancelar") } },
+        )
+    }
 }
 
 @Composable
@@ -96,6 +105,7 @@ private fun HabitCard(item: HabitListItem, onComplete: () -> Unit, onArchive: ()
         colors = CardDefaults.cardColors(
             containerColor = if (item.isComplete) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surface,
         ),
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
     ) {
         Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -110,9 +120,10 @@ private fun HabitCard(item: HabitListItem, onComplete: () -> Unit, onArchive: ()
                 }
             }
             val unit = when (item.habit.targetType) {
-                HabitTargetType.YES_NO -> "completado"
+                HabitTargetType.YES_NO -> "objetivo"
                 HabitTargetType.DURATION -> "min"
-                HabitTargetType.QUANTITY, HabitTargetType.REPETITIONS -> "registros"
+                HabitTargetType.QUANTITY -> "unidades"
+                HabitTargetType.REPETITIONS -> "repeticiones"
             }
             Text("${item.currentValue.coerceAtMost(item.habit.targetValue)} de ${item.habit.targetValue} $unit", style = MaterialTheme.typography.bodyMedium)
             LinearProgressIndicator(
@@ -125,7 +136,10 @@ private fun HabitCard(item: HabitListItem, onComplete: () -> Unit, onArchive: ()
                 Button(onClick = onComplete, enabled = !item.isComplete) {
                     Text(if (item.isComplete) "Completado" else "Completar")
                 }
-                OutlinedButton(onClick = onArchive) { Text("Archivar") }
+                TextButton(onClick = onArchive) {
+                    Icon(Icons.Rounded.Archive, contentDescription = null)
+                    Text("  Archivar")
+                }
             }
         }
     }
@@ -140,40 +154,51 @@ private fun CreateHabitDialog(
     var description by rememberSaveableState("")
     var target by rememberSaveableState("1")
     var type by rememberSaveableState(HabitTargetType.YES_NO)
+    var attempted by rememberSaveableState(false)
+    val parsedTarget = target.toIntOrNull()
+    val validName = name.trim().isNotEmpty()
+    val validTarget = type == HabitTargetType.YES_NO || parsedTarget in 1..10_000
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Nuevo habito") },
+        title = { Text("Nuevo hábito") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(name, { name = it }, label = { Text("Nombre") }, singleLine = true)
-                OutlinedTextField(description, { description = it }, label = { Text("Descripcion opcional") })
+                OutlinedTextField(name, { name = it }, label = { Text("Nombre") }, singleLine = true, isError = attempted && !validName, supportingText = { if (attempted && !validName) Text("Ingresá un nombre") })
+                OutlinedTextField(description, { description = it }, label = { Text("Descripción opcional") })
                 HabitTargetType.entries.forEach { option ->
                     FilterChip(
                         selected = type == option,
-                        onClick = { type = option },
+                        onClick = { type = option; if (option == HabitTargetType.YES_NO) target = "1" },
                         label = { Text(option.displayName()) },
                     )
                 }
-                OutlinedTextField(
-                    value = target,
-                    onValueChange = { target = it.filter(Char::isDigit) },
-                    label = { Text("Objetivo diario") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    singleLine = true,
-                )
+                if (type != HabitTargetType.YES_NO) {
+                    OutlinedTextField(
+                        value = target,
+                        onValueChange = { target = it.filter(Char::isDigit) },
+                        label = { Text("Objetivo diario") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true,
+                        isError = attempted && !validTarget,
+                        supportingText = { if (attempted && !validTarget) Text("Elegí un valor entre 1 y 10.000") },
+                    )
+                }
             }
         },
         confirmButton = {
-            Button(onClick = { onCreate(name, description, type, target.toIntOrNull() ?: 0) }) { Text("Guardar") }
+            Button(onClick = {
+                attempted = true
+                if (validName && validTarget) onCreate(name, description, type, if (type == HabitTargetType.YES_NO) 1 else parsedTarget!!)
+            }) { Text("Guardar") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } },
     )
 }
 
 private fun HabitTargetType.displayName(): String = when (this) {
-    HabitTargetType.YES_NO -> "Si o no"
+    HabitTargetType.YES_NO -> "Sí o no"
     HabitTargetType.QUANTITY -> "Cantidad"
-    HabitTargetType.DURATION -> "Duracion"
+    HabitTargetType.DURATION -> "Duración"
     HabitTargetType.REPETITIONS -> "Repeticiones"
 }
 

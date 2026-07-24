@@ -53,14 +53,15 @@ class AppViewModel @Inject constructor(
 }
 
 data class HomeUiState(
-    val greeting: String = "Buen dia",
+    val greeting: String = "Buen día",
     val progress: Float = 0f,
     val completedHabits: Int = 0,
     val totalHabits: Int = 0,
     val waterMl: Int = 0,
     val waterGoalMl: Int = 2_000,
-    val nextAction: String = "Crea un habito o registra tu primera actividad.",
-    val dailyMotivation: String = "Un pequeno paso hoy tambien cuenta.",
+    val sleepMinutes: Long = 0,
+    val nextAction: String = "Creá un hábito o registrá tu primera actividad.",
+    val dailyMotivation: String = "Un pequeño paso hoy también cuenta.",
     val hydrationStreak: Int = 0,
 )
 
@@ -81,15 +82,15 @@ class HomeViewModel @Inject constructor(
         val summary = summarizeDay(habits, logs, water, sleep, preferences.waterGoalMl)
         val hour = java.time.LocalTime.now().hour
         val greeting = when (hour) {
-            in 5..11 -> "Buen dia"
+            in 5..11 -> "Buen día"
             in 12..18 -> "Buenas tardes"
             else -> "Buenas noches"
         }
         val nextAction = when {
-            summary.waterMl < summary.waterGoalMl -> "Registra agua: faltan ${summary.waterGoalMl - summary.waterMl} ml."
-            summary.completedHabits < summary.totalHabits -> "Completa un habito pendiente."
-            !summary.hasSleep -> "Registra tu ultima sesion de sueno."
-            else -> "Tu seguimiento de hoy esta al dia."
+            summary.waterMl < summary.waterGoalMl -> "Faltan ${summary.waterGoalMl - summary.waterMl} ml para tu objetivo."
+            summary.completedHabits < summary.totalHabits -> "Tenés un hábito pendiente para hoy."
+            !summary.hasSleep -> "Registrá tu última sesión de sueño."
+            else -> "Tu seguimiento de hoy está al día."
         }
         HomeUiState(
             greeting = greeting,
@@ -98,6 +99,7 @@ class HomeViewModel @Inject constructor(
             totalHabits = summary.totalHabits,
             waterMl = summary.waterMl,
             waterGoalMl = summary.waterGoalMl,
+            sleepMinutes = sleep.filter { it.wakeTime.toLocalDate() == LocalDate.now() }.sumOf { it.durationMinutes },
             nextAction = nextAction,
             dailyMotivation = dailyMotivation(),
             hydrationStreak = hydrationStreak(water, preferences.waterGoalMl),
@@ -244,6 +246,9 @@ data class StatisticsUiState(
     val weeklySleepAverage: Long = 0,
     val habitCompletion: Float = 0f,
     val daysWithData: Int = 0,
+    val dailyWater: List<Int> = List(7) { 0 },
+    val dailySleep: List<Long> = List(7) { 0L },
+    val dailyHabitCompletion: List<Float> = List(7) { 0f },
 )
 
 @HiltViewModel
@@ -270,11 +275,19 @@ class StatisticsViewModel @Inject constructor(
         val recordedDays = days.count { day ->
             water.any { it.loggedAt.toLocalDate() == day } || sleep.any { it.wakeTime.toLocalDate() == day } || logs.any { it.loggedAt.toLocalDate() == day }
         }
+        val habitByDay = days.map { day ->
+            if (habits.isEmpty()) 0f else habits.count { habit ->
+                logs.filter { it.habitId == habit.id && it.loggedAt.toLocalDate() == day }.sumOf { it.value } >= habit.targetValue
+            }.toFloat() / habits.size
+        }
         StatisticsUiState(
             weeklyWaterAverage = waterByDay.average().toInt(),
             weeklySleepAverage = sleepByDay.flatten().average().takeIf { !it.isNaN() }?.toLong() ?: 0,
             habitCompletion = if (possible == 0) 0f else completed.toFloat() / possible,
             daysWithData = recordedDays,
+            dailyWater = waterByDay,
+            dailySleep = sleepByDay.map { values -> values.average().takeIf { !it.isNaN() }?.toLong() ?: 0L },
+            dailyHabitCompletion = habitByDay,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), StatisticsUiState())
 }

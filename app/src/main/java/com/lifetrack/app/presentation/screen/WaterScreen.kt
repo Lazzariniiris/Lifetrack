@@ -28,6 +28,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.WaterDrop
+import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -66,10 +67,12 @@ fun WaterScreen(contentPadding: PaddingValues, viewModel: WaterViewModel = hiltV
         item {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text("Hidratacion", style = MaterialTheme.typography.headlineMedium)
-                    Text("Cada registro cuenta", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    PageHeader("Hidratación", "Cada vaso te acerca a tu objetivo")
                 }
-                TextButton(onClick = { showSettings = true }) { Text("Ajustes") }
+                TextButton(onClick = { showSettings = true }) {
+                    Icon(Icons.Rounded.Settings, contentDescription = null)
+                    Text("  Ajustes")
+                }
             }
         }
         item {
@@ -89,16 +92,18 @@ fun WaterScreen(contentPadding: PaddingValues, viewModel: WaterViewModel = hiltV
                         Text("Restan ${(state.preferences.waterGoalMl - state.consumedMl).coerceAtLeast(0)} ml", style = MaterialTheme.typography.labelLarge)
                     }
                 }
-                Row(modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 20.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = { viewModel.add(state.preferences.waterQuickAddMl) }) { Text("+${state.preferences.waterQuickAddMl} ml") }
-                        OutlinedButton(onClick = { showCustomAdd = true }) { Text("Otra cantidad") }
+                Row(modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 10.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    listOf(150, 250, 500).forEach { amount ->
+                        Button(onClick = { viewModel.add(amount) }, modifier = Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 4.dp)) { Text("+$amount") }
+                    }
                 }
+                OutlinedButton(onClick = { showCustomAdd = true }, modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 16.dp)) { Text("Otra cantidad") }
             }
         }
         state.error?.let { message -> item { ErrorCard(message) } }
-        item { Text("Historial reciente", style = MaterialTheme.typography.titleLarge) }
+        item { SectionHeader("Historial reciente") }
         if (state.entries.isEmpty()) {
-            item { EmptyState("No hay registros de agua todavia.") }
+            item { EmptyState("Todavía no hay registros de agua para mostrar.") }
         } else {
             items(state.entries, key = { it.id }) { entry ->
                 Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
@@ -140,6 +145,9 @@ fun WaterScreen(contentPadding: PaddingValues, viewModel: WaterViewModel = hiltV
 @Composable
 private fun AmountDialog(onDismiss: () -> Unit, onAdd: (Int) -> Unit) {
     var amount by rememberSaveableString("250")
+    var attempted by rememberSaveableBoolean(false)
+    val parsed = amount.toIntOrNull()
+    val valid = parsed != null && parsed in 1..2_000
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Registrar agua") },
@@ -149,9 +157,11 @@ private fun AmountDialog(onDismiss: () -> Unit, onAdd: (Int) -> Unit) {
                 onValueChange = { amount = it.filter(Char::isDigit) },
                 label = { Text("Cantidad en ml") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                isError = attempted && !valid,
+                supportingText = { if (attempted && !valid) Text("Ingresá una cantidad entre 1 y 2.000 ml") },
             )
         },
-        confirmButton = { Button(onClick = { onAdd(amount.toIntOrNull() ?: 0) }) { Text("Registrar") } },
+        confirmButton = { Button(onClick = { attempted = true; if (valid) onAdd(parsed!!) }) { Text("Registrar") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } },
     )
 }
@@ -167,21 +177,26 @@ private fun WaterSettingsDialog(
     var goal by rememberSaveableString(initialGoal.toString())
     var quickAdd by rememberSaveableString(initialQuickAdd.toString())
     var reminders by rememberSaveableBoolean(initialReminders)
+    var attempted by rememberSaveableBoolean(false)
+    val parsedGoal = goal.toIntOrNull()
+    val parsedQuickAdd = quickAdd.toIntOrNull()
+    val validGoal = parsedGoal != null && parsedGoal in 250..10_000
+    val validQuickAdd = parsedQuickAdd != null && parsedQuickAdd in 50..1_000
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Ajustes de hidratacion") },
+        title = { Text("Ajustes de hidratación") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(goal, { goal = it.filter(Char::isDigit) }, label = { Text("Objetivo diario (ml)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-                OutlinedTextField(quickAdd, { quickAdd = it.filter(Char::isDigit) }, label = { Text("Registro rapido (ml)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                OutlinedTextField(goal, { goal = it.filter(Char::isDigit) }, label = { Text("Objetivo diario (ml)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), isError = attempted && !validGoal, supportingText = { if (attempted && !validGoal) Text("Entre 250 y 10.000 ml") })
+                OutlinedTextField(quickAdd, { quickAdd = it.filter(Char::isDigit) }, label = { Text("Registro rápido (ml)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), isError = attempted && !validQuickAdd, supportingText = { if (attempted && !validQuickAdd) Text("Entre 50 y 1.000 ml") })
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text("Recordatorios adaptativos")
                     Switch(checked = reminders, onCheckedChange = { reminders = it })
                 }
-                Text("Se ajustan al progreso, al ultimo registro y a tu ritmo habitual. Se respetan horarios silenciosos y las restricciones de Android.", style = MaterialTheme.typography.bodySmall)
+                Text("Se ajustan al progreso y a tu último registro. Android puede limitar la entrega para cuidar la batería.", style = MaterialTheme.typography.bodySmall)
             }
         },
-        confirmButton = { Button(onClick = { onSave(goal.toIntOrNull() ?: 0, quickAdd.toIntOrNull() ?: 0, reminders) }) { Text("Guardar") } },
+        confirmButton = { Button(onClick = { attempted = true; if (validGoal && validQuickAdd) onSave(parsedGoal!!, parsedQuickAdd!!, reminders) }) { Text("Guardar") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } },
     )
 }

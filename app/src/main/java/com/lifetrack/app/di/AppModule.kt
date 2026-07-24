@@ -64,7 +64,7 @@ object DatabaseModule {
         .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
         .build().create(AuthApi::class.java)
     @Provides @Singleton fun provideMealApi(json: Json): MealApi = Retrofit.Builder()
-        .baseUrl(BuildConfig.API_BASE_URL.takeIf { it.startsWith("https://") } ?: "https://localhost/")
+        .baseUrl(BuildConfig.API_BASE_URL.takeIf { it.startsWith("https://") }?.let { if (it.endsWith('/')) it else "$it/" } ?: "https://localhost/")
         .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
         .build().create(MealApi::class.java)
     @Provides
