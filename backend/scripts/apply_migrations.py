@@ -7,7 +7,10 @@ project_url = os.environ["SUPABASE_URL"].rstrip("/")
 project_ref = project_url.removeprefix("https://").split(".")[0]
 token = os.environ["SUPABASE_ACCESS_TOKEN"]
 sql_directory = Path(__file__).parents[1] / "sql"
-sql = "\n".join(path.read_text(encoding="utf-8") for path in sorted(sql_directory.glob("*.sql")))
+migrations = sorted(sql_directory.glob("[0-9][0-9][0-9]_*.sql"))
+if not migrations:
+    raise RuntimeError("No numbered migrations found")
+sql = "\n".join(path.read_text(encoding="utf-8") for path in migrations)
 request = Request(
     f"https://api.supabase.com/v1/projects/{project_ref}/database/query",
     data=json.dumps({"query": sql}).encode(),
@@ -15,4 +18,5 @@ request = Request(
     method="POST",
 )
 with urlopen(request, timeout=120) as response:
-    print(f"Migration applied: HTTP {response.status}")
+    names = ", ".join(path.name for path in migrations)
+    print(f"Migrations applied ({names}): HTTP {response.status}")

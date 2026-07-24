@@ -6,13 +6,15 @@ import com.lifetrack.app.domain.model.AppResult
 import com.lifetrack.app.domain.model.Habit
 import com.lifetrack.app.domain.model.HabitTargetType
 import com.lifetrack.app.domain.model.ThemeMode
+import com.lifetrack.app.domain.model.AppLanguage
+import com.lifetrack.app.domain.model.UnitSystem
+import com.lifetrack.app.domain.model.NutritionPreference
 import com.lifetrack.app.domain.model.UserPreferences
 import com.lifetrack.app.domain.model.WaterEntry
 import com.lifetrack.app.domain.repository.PreferencesRepository
 import com.lifetrack.app.domain.usecase.HabitUseCases
 import com.lifetrack.app.domain.usecase.SleepUseCases
 import com.lifetrack.app.domain.usecase.WaterUseCases
-import com.lifetrack.app.domain.usecase.dailyMotivation
 import com.lifetrack.app.domain.usecase.hydrationStreak
 import com.lifetrack.app.domain.usecase.summarizeDay
 import com.lifetrack.app.notifications.ReminderScheduler
@@ -50,6 +52,10 @@ class AppViewModel @Inject constructor(
     fun setTheme(mode: ThemeMode) = viewModelScope.launch {
         preferencesRepository.updateThemeMode(mode)
     }
+
+    fun updateAppSettings(language: AppLanguage, units: UnitSystem, nutrition: NutritionPreference, mealNotifications: Boolean) = viewModelScope.launch {
+        preferencesRepository.updateAppSettings(language, units, nutrition, mealNotifications)
+    }
 }
 
 data class HomeUiState(
@@ -61,7 +67,6 @@ data class HomeUiState(
     val waterGoalMl: Int = 2_000,
     val sleepMinutes: Long = 0,
     val nextAction: String = "Creá un hábito o registrá tu primera actividad.",
-    val dailyMotivation: String = "Un pequeño paso hoy también cuenta.",
     val hydrationStreak: Int = 0,
 )
 
@@ -101,7 +106,6 @@ class HomeViewModel @Inject constructor(
             waterGoalMl = summary.waterGoalMl,
             sleepMinutes = sleep.filter { it.wakeTime.toLocalDate() == LocalDate.now() }.sumOf { it.durationMinutes },
             nextAction = nextAction,
-            dailyMotivation = dailyMotivation(),
             hydrationStreak = hydrationStreak(water, preferences.waterGoalMl),
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeUiState())

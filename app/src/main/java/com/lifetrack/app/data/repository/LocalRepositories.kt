@@ -19,6 +19,9 @@ import com.lifetrack.app.domain.model.HabitLog
 import com.lifetrack.app.domain.model.HabitTargetType
 import com.lifetrack.app.domain.model.SleepEntry
 import com.lifetrack.app.domain.model.ThemeMode
+import com.lifetrack.app.domain.model.AppLanguage
+import com.lifetrack.app.domain.model.UnitSystem
+import com.lifetrack.app.domain.model.NutritionPreference
 import com.lifetrack.app.domain.model.UserPreferences
 import com.lifetrack.app.domain.model.WaterEntry
 import com.lifetrack.app.domain.repository.HabitRepository
@@ -99,6 +102,10 @@ class DataStorePreferencesRepository @Inject constructor(
             waterRemindersEnabled = preferences[WATER_REMINDERS_ENABLED] ?: false,
             quietStartMinutes = preferences[QUIET_START_MINUTES] ?: 1_320,
             quietEndMinutes = preferences[QUIET_END_MINUTES] ?: 420,
+            language = preferences[LANGUAGE]?.let { runCatching { AppLanguage.valueOf(it) }.getOrDefault(AppLanguage.SYSTEM) } ?: AppLanguage.SYSTEM,
+            unitSystem = preferences[UNIT_SYSTEM]?.let { runCatching { UnitSystem.valueOf(it) }.getOrDefault(UnitSystem.METRIC) } ?: UnitSystem.METRIC,
+            nutritionPreference = preferences[NUTRITION_PREFERENCE]?.let { runCatching { NutritionPreference.valueOf(it) }.getOrDefault(NutritionPreference.NONE) } ?: NutritionPreference.NONE,
+            mealAnalysisNotificationsEnabled = preferences[MEAL_NOTIFICATIONS] ?: true,
         )
     }
 
@@ -114,6 +121,20 @@ class DataStorePreferencesRepository @Inject constructor(
         context.dataStore.edit { preferences -> preferences[THEME_MODE] = mode.name }
     }
 
+    override suspend fun updateAppSettings(
+        language: AppLanguage,
+        unitSystem: UnitSystem,
+        nutritionPreference: NutritionPreference,
+        mealNotificationsEnabled: Boolean,
+    ) {
+        context.dataStore.edit { preferences ->
+            preferences[LANGUAGE] = language.name
+            preferences[UNIT_SYSTEM] = unitSystem.name
+            preferences[NUTRITION_PREFERENCE] = nutritionPreference.name
+            preferences[MEAL_NOTIFICATIONS] = mealNotificationsEnabled
+        }
+    }
+
     private companion object {
         val THEME_MODE = stringPreferencesKey("theme_mode")
         val WATER_GOAL_ML = intPreferencesKey("water_goal_ml")
@@ -121,6 +142,10 @@ class DataStorePreferencesRepository @Inject constructor(
         val WATER_REMINDERS_ENABLED = booleanPreferencesKey("water_reminders_enabled")
         val QUIET_START_MINUTES = intPreferencesKey("quiet_start_minutes")
         val QUIET_END_MINUTES = intPreferencesKey("quiet_end_minutes")
+        val LANGUAGE = stringPreferencesKey("language")
+        val UNIT_SYSTEM = stringPreferencesKey("unit_system")
+        val NUTRITION_PREFERENCE = stringPreferencesKey("nutrition_preference")
+        val MEAL_NOTIFICATIONS = booleanPreferencesKey("meal_analysis_notifications")
     }
 }
 

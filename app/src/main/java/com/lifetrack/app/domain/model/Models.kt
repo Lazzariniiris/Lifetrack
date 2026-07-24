@@ -41,11 +41,10 @@ data class SleepEntry(
     val durationMinutes: Long get() = (wakeTime - bedtime) / 60_000
 }
 
-enum class ThemeMode {
-    SYSTEM,
-    LIGHT,
-    DARK,
-}
+enum class ThemeMode { SYSTEM, LIGHT, DARK }
+enum class AppLanguage { SYSTEM, SPANISH, ENGLISH }
+enum class UnitSystem { METRIC, IMPERIAL }
+enum class NutritionPreference { NONE, VEGETARIAN, VEGAN, LOW_SODIUM }
 
 data class UserPreferences(
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
@@ -54,6 +53,10 @@ data class UserPreferences(
     val waterRemindersEnabled: Boolean = false,
     val quietStartMinutes: Int = DEFAULT_QUIET_START_MINUTES,
     val quietEndMinutes: Int = DEFAULT_QUIET_END_MINUTES,
+    val language: AppLanguage = AppLanguage.SYSTEM,
+    val unitSystem: UnitSystem = UnitSystem.METRIC,
+    val nutritionPreference: NutritionPreference = NutritionPreference.NONE,
+    val mealAnalysisNotificationsEnabled: Boolean = true,
 )
 
 const val DEFAULT_WATER_GOAL_ML = 2_000

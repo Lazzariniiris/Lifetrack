@@ -13,8 +13,8 @@ import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Add
-import androidx.compose.material.icons.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.BarChart
 import androidx.compose.material.icons.rounded.Bedtime
 import androidx.compose.material.icons.rounded.CameraAlt
@@ -38,6 +38,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -87,11 +88,27 @@ private val routeTitles = mapOf(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun LifeTrackNavigation(appViewModel: AppViewModel) {
+fun LifeTrackNavigation(
+    appViewModel: AppViewModel,
+    recoveryLink: String? = null,
+    onRecoveryLinkConsumed: () -> Unit = {},
+    openMeals: Boolean = false,
+    onMealsOpened: () -> Unit = {},
+) {
     val navController = rememberNavController()
     val route = navController.currentBackStackEntryAsState().value?.destination?.route ?: "home"
     val isMainRoute = mainDestinations.any { it.route == route }
     var showRegisterSheet by remember { mutableStateOf(false) }
+
+    LaunchedEffect(recoveryLink) {
+        if (recoveryLink != null) navController.navigate("profile") { launchSingleTop = true }
+    }
+    LaunchedEffect(openMeals) {
+        if (openMeals) {
+            navController.navigate("meals") { launchSingleTop = true }
+            onMealsOpened()
+        }
+    }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -102,7 +119,7 @@ fun LifeTrackNavigation(appViewModel: AppViewModel) {
                     navigationIcon = {
                         if (!isMainRoute) {
                             IconButton(onClick = { navController.popBackStack() }) {
-                                Icon(Icons.Rounded.ArrowBack, contentDescription = "Volver")
+                                Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Volver")
                             }
                         }
                     },
@@ -157,6 +174,8 @@ fun LifeTrackNavigation(appViewModel: AppViewModel) {
                     innerPadding,
                     onOpenSettings = { navController.navigate("settings") },
                     onOpenAbout = { navController.navigate("about") },
+                    recoveryLink = recoveryLink,
+                    onRecoveryLinkConsumed = onRecoveryLinkConsumed,
                 )
             }
             composable("water") { WaterScreen(innerPadding) }

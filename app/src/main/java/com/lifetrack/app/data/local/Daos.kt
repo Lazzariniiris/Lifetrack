@@ -53,20 +53,30 @@ interface SleepDao {
 
 @Dao
 interface MealDao {
-    @Query("SELECT * FROM pending_meal_analyses WHERE status = 'PENDING' ORDER BY createdAt LIMIT 1")
-    suspend fun nextPending(): PendingMealAnalysisEntity?
-    @Query("SELECT * FROM pending_meal_analyses WHERE status = 'READY' ORDER BY updatedAt DESC")
-    fun observeReady(): Flow<List<PendingMealAnalysisEntity>>
+    @Query("SELECT * FROM pending_meal_analyses WHERE ownerUserId = :ownerUserId AND status = 'PENDING' ORDER BY createdAt LIMIT 1")
+    suspend fun nextPending(ownerUserId: String): PendingMealAnalysisEntity?
+    @Query("SELECT * FROM pending_meal_analyses WHERE ownerUserId = :ownerUserId AND status = 'READY' ORDER BY updatedAt DESC")
+    fun observeReady(ownerUserId: String): Flow<List<PendingMealAnalysisEntity>>
+    @Query("SELECT * FROM pending_meal_analyses WHERE ownerUserId = :ownerUserId ORDER BY createdAt DESC")
+    fun observeQueue(ownerUserId: String): Flow<List<PendingMealAnalysisEntity>>
+    @Query("SELECT photoPath FROM pending_meal_analyses")
+    suspend fun allPendingPhotoPaths(): List<String>
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertPending(value: PendingMealAnalysisEntity)
-    @Query("UPDATE pending_meal_analyses SET status = 'READY', resultJson = :result, updatedAt = :updatedAt WHERE id = :id")
+    @Query("UPDATE pending_meal_analyses SET cloudPhotoPath = :cloudPhotoPath, attemptCount = attemptCount + 1, updatedAt = :updatedAt WHERE id = :id")
+    suspend fun markAttempt(id: String, cloudPhotoPath: String?, updatedAt: Long)
+    @Query("UPDATE pending_meal_analyses SET status = 'READY', resultJson = :result, lastError = NULL, updatedAt = :updatedAt WHERE id = :id")
     suspend fun markReady(id: String, result: String, updatedAt: Long)
-    @Query("UPDATE pending_meal_analyses SET status = 'FAILED', updatedAt = :updatedAt WHERE id = :id")
-    suspend fun markFailed(id: String, updatedAt: Long)
+    @Query("UPDATE pending_meal_analyses SET status = 'FAILED', lastError = :message, updatedAt = :updatedAt WHERE id = :id")
+    suspend fun markFailed(id: String, message: String, updatedAt: Long)
+    @Query("UPDATE pending_meal_analyses SET status = 'PENDING', lastError = NULL, attemptCount = 0, updatedAt = :updatedAt WHERE id = :id AND ownerUserId = :ownerUserId")
+    suspend fun retry(id: String, ownerUserId: String, updatedAt: Long)
     @Query("DELETE FROM pending_meal_analyses WHERE id = :id")
     suspend fun deletePending(id: String)
-    @Query("SELECT * FROM meal_history ORDER BY createdAt DESC")
-    fun observeHistory(): Flow<List<MealHistoryEntity>>
+    @Query("SELECT * FROM meal_history WHERE ownerUserId = :ownerUserId ORDER BY createdAt DESC")
+    fun observeHistory(ownerUserId: String): Flow<List<MealHistoryEntity>>
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertHistory(value: MealHistoryEntity)
+    @Query("DELETE FROM meal_history WHERE id = :id AND ownerUserId = :ownerUserId")
+    suspend fun deleteHistory(id: String, ownerUserId: String)
 }

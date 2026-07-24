@@ -11,13 +11,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.TrendingUp
 import androidx.compose.material.icons.rounded.Bedtime
 import androidx.compose.material.icons.rounded.CheckCircle
-import androidx.compose.material.icons.rounded.DirectionsRun
 import androidx.compose.material.icons.rounded.LocalFireDepartment
-import androidx.compose.material.icons.rounded.Mood
 import androidx.compose.material.icons.rounded.Restaurant
-import androidx.compose.material.icons.rounded.TrendingUp
 import androidx.compose.material.icons.rounded.WaterDrop
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -133,21 +131,9 @@ fun HomeScreen(
             }
         }
         item {
-            MetricRow {
-                HealthMetricCard(
-                    "Actividad", "Sin registrar", "Movimiento diario",
-                    Icons.Rounded.DirectionsRun, LifeTrackColors.Activity, null, Modifier.weight(1f),
-                ) { onNavigate("statistics") }
-                HealthMetricCard(
-                    "Ánimo", "Sin registrar", "¿Cómo te sentís?",
-                    Icons.Rounded.Mood, LifeTrackColors.Mood, null, Modifier.weight(1f),
-                ) { onNavigate("statistics") }
-            }
-        }
-        item {
             HealthMetricCard(
                 "Progreso", "${(state.progress * 100).toInt()}%", "Objetivo diario combinado",
-                Icons.Rounded.TrendingUp, MaterialTheme.colorScheme.primary, state.progress, Modifier.fillMaxWidth(),
+                Icons.AutoMirrored.Rounded.TrendingUp, MaterialTheme.colorScheme.primary, state.progress, Modifier.fillMaxWidth(),
             ) { onNavigate("statistics") }
         }
     }

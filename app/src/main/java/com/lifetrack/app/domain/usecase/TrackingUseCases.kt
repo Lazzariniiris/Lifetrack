@@ -166,6 +166,3 @@ fun summarizeDay(
         hasSleep = sleepEntries.any { it.wakeTime.isOnDate() },
     )
 }
-
-fun entriesOnDate(timestamps: List<Long>, date: LocalDate, zoneId: ZoneId = ZoneId.systemDefault()): Int =
-    timestamps.count { Instant.ofEpochMilli(it).atZone(zoneId).toLocalDate() == date }

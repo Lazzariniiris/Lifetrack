@@ -72,8 +72,6 @@ object LifeTrackColors {
     val Sleep = Color(0xFF4F7FC7)
     val Habits = Color(0xFF2D907B)
     val Meals = Color(0xFF39785D)
-    val Activity = Color(0xFF087F8C)
-    val Mood = Color(0xFF7A6FA8)
 }
 
 private val LifeTrackShapes = Shapes(

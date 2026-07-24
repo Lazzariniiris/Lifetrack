@@ -35,4 +35,10 @@ interface PreferencesRepository {
         remindersEnabled: Boolean,
     )
     suspend fun updateThemeMode(mode: com.lifetrack.app.domain.model.ThemeMode)
+    suspend fun updateAppSettings(
+        language: com.lifetrack.app.domain.model.AppLanguage,
+        unitSystem: com.lifetrack.app.domain.model.UnitSystem,
+        nutritionPreference: com.lifetrack.app.domain.model.NutritionPreference,
+        mealNotificationsEnabled: Boolean,
+    )
 }

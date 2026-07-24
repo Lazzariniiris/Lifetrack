@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Matrix
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -48,6 +49,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
@@ -60,9 +62,11 @@ import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.exifinterface.media.ExifInterface
 import com.lifetrack.app.data.remote.MealAnalysisResult
 import com.lifetrack.app.presentation.viewmodel.MealViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.UUID
@@ -107,6 +111,7 @@ fun MealCameraScreen(contentPadding: PaddingValues, onBack: () -> Unit, viewMode
                     }
                 }
             }
+            state.ownerUserId == null -> EmptyState("Iniciá sesión desde Perfil para proteger la fotografía y asociar el análisis únicamente a tu cuenta.")
             !state.consent -> ConsentCard(state.consent, viewModel::setConsent)
             permissionGranted -> {
                 CameraPreview(onCaptured = viewModel::setPhoto, onError = viewModel::setCaptureError)
@@ -132,7 +137,7 @@ private fun ConsentCard(checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
             Checkbox(checked, onCheckedChange)
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text("Procesamiento de imagen", style = MaterialTheme.typography.titleMedium)
-                Text("Autorizo el procesamiento temporal para identificar alimentos. La foto se elimina al completar el análisis.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Autorizo el procesamiento para identificar alimentos. La foto se guarda de forma privada con mi historial y puedo eliminarla junto con el registro.", color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }
@@ -172,6 +177,7 @@ private fun CameraPreview(onCaptured: (String) -> Unit, onError: (String) -> Uni
     var provider by remember { mutableStateOf<ProcessCameraProvider?>(null) }
     var preview by remember { mutableStateOf<Preview?>(null) }
     var capturing by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         AndroidView(
@@ -200,8 +206,12 @@ private fun CameraPreview(onCaptured: (String) -> Unit, onError: (String) -> Uni
                     ContextCompat.getMainExecutor(context),
                     object : ImageCapture.OnImageSavedCallback {
                         override fun onImageSaved(output: ImageCapture.OutputFileResults) {
-                            capturing = false
-                            onCaptured(file.absolutePath)
+                            scope.launch {
+                                val normalized = withContext(Dispatchers.IO) { normalizeJpegFile(file) }
+                                capturing = false
+                                if (normalized != null) onCaptured(normalized.absolutePath)
+                                else onError("No pudimos preparar la fotografía. Intentá nuevamente.")
+                            }
                         }
                         override fun onError(exception: ImageCaptureException) {
                             capturing = false
@@ -234,14 +244,19 @@ private fun MealResult(result: MealAnalysisResult, onSave: (MealAnalysisResult) 
     var sugars by remember(result.id) { mutableStateOf(result.nutrition.sugarsG.toString()) }
     var sodium by remember(result.id) { mutableStateOf(result.nutrition.sodiumMg.toString()) }
     var showValidation by remember { mutableStateOf(false) }
+    var lowConfidenceConfirmed by remember(result.id) { mutableStateOf(false) }
     val inputs = listOf(calories, protein, carbs, fat, fiber, sugars, sodium)
     val valid = inputs.all { it.toDoubleOrNull()?.let { value -> value.isFinite() && value >= 0 } == true }
+    val saved = result.status in setOf("completed", "corrected")
+    val needsConfirmation = result.confidence < 0.7
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Icon(Icons.Rounded.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-            Text(if (result.id == null) "Revisá la estimación" else "Comida guardada", style = MaterialTheme.typography.titleLarge)
+            Text(if (saved) "Comida guardada" else "Revisá la estimación", style = MaterialTheme.typography.titleLarge)
         }
+        Text("Confianza del análisis: ${(result.confidence * 100).toInt()}%", style = MaterialTheme.typography.titleMedium, color = if (needsConfirmation) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
+        if (result.observations.isNotEmpty()) Text(result.observations.joinToString(" · "), color = MaterialTheme.colorScheme.onSurfaceVariant)
         foods.forEachIndexed { index, food ->
             OutlinedTextField(
                 food.name,
@@ -253,6 +268,9 @@ private fun MealResult(result: MealAnalysisResult, onSave: (MealAnalysisResult) 
                 { value -> foods = foods.toMutableList().also { it[index] = food.copy(estimatedPortion = value) } },
                 label = { Text("Porción estimada") }, modifier = Modifier.fillMaxWidth(),
             )
+            if (food.alternatives.isNotEmpty()) {
+                Text("Alternativas: ${food.alternatives.joinToString()}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
         }
         NutritionField("Calorías", calories, { calories = it })
         NutritionField("Proteínas (g)", protein, { protein = it })
@@ -262,17 +280,25 @@ private fun MealResult(result: MealAnalysisResult, onSave: (MealAnalysisResult) 
         NutritionField("Azúcares (g)", sugars, { sugars = it })
         NutritionField("Sodio (mg)", sodium, { sodium = it })
         if (showValidation && !valid) Text("Revisá los valores: deben ser números iguales o mayores que cero.", color = MaterialTheme.colorScheme.error)
-        Text("La información es una estimación orientativa y puede requerir ajustes.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        if (result.id == null) {
+        if (needsConfirmation && !saved) {
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Row(modifier = Modifier.fillMaxWidth().clickable { lowConfidenceConfirmed = !lowConfidenceConfirmed }.padding(12.dp)) {
+                    Checkbox(lowConfidenceConfirmed, { lowConfidenceConfirmed = it })
+                    Text("Revisé el alimento y la porción. Confirmo que los valores editados son adecuados para mi registro.", modifier = Modifier.weight(1f))
+                }
+            }
+        }
+        Text("Los valores son estimaciones visuales para seguimiento general y no constituyen consejo médico o nutricional.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        if (!saved) {
             Button(
                 onClick = {
                     showValidation = true
-                    if (valid) {
+                    if (valid && (!needsConfirmation || lowConfidenceConfirmed)) {
                         val values = inputs.map { it.toDouble() }
                         onSave(result.copy(foods = foods, nutrition = result.nutrition.copy(calories = values[0], proteinG = values[1], carbsG = values[2], fatG = values[3], fiberG = values[4], sugarsG = values[5], sodiumMg = values[6])))
                     }
                 },
-                enabled = !loading,
+                enabled = !loading && (!needsConfirmation || lowConfidenceConfirmed),
                 modifier = Modifier.fillMaxWidth(),
             ) { Text("Guardar comida") }
         } else {
@@ -298,12 +324,27 @@ private fun copyImageAsJpeg(context: Context, uri: Uri): File? = runCatching {
     context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, options) }
     options.inSampleSize = calculateSampleSize(options.outWidth, options.outHeight, 2048)
     options.inJustDecodeBounds = false
-    val bitmap = context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, options) } ?: return null
+    val decoded = context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, options) } ?: return null
+    val rotation = context.contentResolver.openInputStream(uri)?.use { exifRotation(ExifInterface(it)) } ?: 0f
+    val bitmap = rotateBitmap(decoded, rotation)
     val directory = File(context.filesDir, "pending_meals").apply { mkdirs() }
     File(directory, "meal-${UUID.randomUUID()}.jpg").also { file ->
         file.outputStream().use { bitmap.compress(Bitmap.CompressFormat.JPEG, 88, it) }
         bitmap.recycle()
     }
+}.getOrNull()
+
+private fun normalizeJpegFile(source: File): File? = runCatching {
+    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    BitmapFactory.decodeFile(source.absolutePath, bounds)
+    val options = BitmapFactory.Options().apply { inSampleSize = calculateSampleSize(bounds.outWidth, bounds.outHeight, 2048) }
+    val decoded = BitmapFactory.decodeFile(source.absolutePath, options) ?: return null
+    val bitmap = rotateBitmap(decoded, exifRotation(ExifInterface(source.absolutePath)))
+    val normalized = File(source.parentFile, "normalized-${source.name}")
+    normalized.outputStream().use { bitmap.compress(Bitmap.CompressFormat.JPEG, 88, it) }
+    bitmap.recycle()
+    source.delete()
+    normalized
 }.getOrNull()
 
 private fun decodeSampledBitmap(path: String): Bitmap? {
@@ -317,4 +358,18 @@ private fun calculateSampleSize(width: Int, height: Int, maxDimension: Int): Int
     var sample = 1
     while (width / sample > maxDimension || height / sample > maxDimension) sample *= 2
     return sample
+}
+
+private fun exifRotation(exif: ExifInterface): Float = when (exif.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)) {
+    ExifInterface.ORIENTATION_ROTATE_90 -> 90f
+    ExifInterface.ORIENTATION_ROTATE_180 -> 180f
+    ExifInterface.ORIENTATION_ROTATE_270 -> 270f
+    else -> 0f
+}
+
+private fun rotateBitmap(source: Bitmap, degrees: Float): Bitmap {
+    if (degrees == 0f) return source
+    val rotated = Bitmap.createBitmap(source, 0, 0, source.width, source.height, Matrix().apply { postRotate(degrees) }, true)
+    if (rotated !== source) source.recycle()
+    return rotated
 }

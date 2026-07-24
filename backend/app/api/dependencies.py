@@ -1,13 +1,30 @@
-import httpx
-from fastapi import Depends, HTTPException
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from app.core.config import settings
+from dataclasses import dataclass
 
-bearer = HTTPBearer()
+from fastapi import Depends
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+
+from app.core.errors import unauthorized
+from app.infrastructure.supabase_gateway import SupabaseGateway
+
+
+bearer = HTTPBearer(auto_error=False)
+
+
+@dataclass(frozen=True, slots=True)
 class AuthenticatedUser:
-    def __init__(self, user_id: str, token: str): self.user_id, self.token = user_id, token
-async def current_user(credentials: HTTPAuthorizationCredentials = Depends(bearer)) -> AuthenticatedUser:
-    async with httpx.AsyncClient(timeout=10) as client:
-        response = await client.get(f"{settings.supabase_url}/auth/v1/user", headers={"apikey": settings.supabase_anon_key, "Authorization": f"Bearer {credentials.credentials}"})
-    if response.status_code != 200: raise HTTPException(401, "Invalid or expired Supabase token")
-    return AuthenticatedUser(response.json()["id"], credentials.credentials)
+    user_id: str
+    token: str
+
+
+def supabase_gateway() -> SupabaseGateway:
+    return SupabaseGateway()
+
+
+async def current_user(
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer),
+    gateway: SupabaseGateway = Depends(supabase_gateway),
+) -> AuthenticatedUser:
+    if credentials is None or credentials.scheme.lower() != "bearer":
+        raise unauthorized()
+    user_id, token = await gateway.authenticate(credentials.credentials)
+    return AuthenticatedUser(user_id, token)
